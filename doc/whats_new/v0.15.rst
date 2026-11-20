@@ -14,6 +14,26 @@ Bug fixes
 Enhancements
 ............
 
+- Added a declarative memory contract to all samplers. Every sampler now
+  exposes ``memory_profile(X, y)`` returning a
+  :class:`~imblearn.utils._memory.MemoryProfile` that reports whether the
+  input is copied, whether a chunked path is supported, the estimated peak
+  extra bytes of both paths, the output size and the scaling law with the
+  sampling ratio. :pr:`TBD` by :user:`KeiMo7`.
+- Added a bounded-memory chunked path to
+  :class:`~imblearn.over_sampling.RandomOverSampler` (plain bootstrap) and
+  :class:`~imblearn.under_sampling.RandomUnderSampler` through the new
+  ``chunk_size`` parameter. The output arrays are pre-allocated and filled
+  chunk by chunk; with the same ``random_state`` the results are
+  bit-identical to the regular path for every chunk size.
+  :pr:`TBD` by :user:`KeiMo7`.
+- Added a ``memory_guard`` parameter to the same two samplers. When enabled,
+  large unchunked datasets trigger an advisory warning with a memory
+  estimate, and pre-flight exhaustion or a mid-run :class:`MemoryError`
+  degrades to returning the input unchanged (with a warning and the
+  ``degraded_`` attribute) instead of crashing. :pr:`TBD` by
+  :user:`KeiMo7`.
+
 Compatibility
 .............
 

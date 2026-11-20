@@ -17,6 +17,17 @@ from sklearn_compat.utils.validation import validate_data
 from imblearn.over_sampling.base import BaseOverSampler
 from imblearn.utils import Substitution, check_target_type
 from imblearn.utils._docstring import _random_state_docstring
+from imblearn.utils._memory import (
+    MEMORY_PARAM_CONSTRAINTS,
+    MemoryProfile,
+    _array_nbytes,
+    _dtype_nbytes,
+    _supports_chunking,
+    coerce_dense_chunkable,
+    estimate_index_bytes,
+    fill_by_indices_chunked,
+    validate_chunk_size,
+)
 from imblearn.utils._validation import _check_X
 
 
@@ -55,6 +66,27 @@ class RandomOverSampler(BaseOverSampler):
 
         .. versionadded:: 0.8
 
+    chunk_size : int or None, default=None
+        Number of rows materialised per chunk. When set on a plain bootstrap
+        (``shrinkage=None``), the resampled arrays are pre-allocated and
+        filled chunk by chunk so the temporary memory footprint stays bounded
+        by ``chunk_size * n_features`` instead of duplicating the input and
+        accumulating per-class arrays. The bootstrap indices are computed
+        globally with the same random draws, hence the chunked path returns
+        identical results to the regular path for a given ``random_state``.
+        Only dense arrays are supported; the smoothed bootstrap
+        (``shrinkage`` not ``None``) keeps using the regular path.
+
+        .. versionadded:: 0.15
+
+    memory_guard : bool, default=False
+        When ``True``, estimate the peak extra memory before resampling and
+        degrade to returning the input unchanged (with a
+        :class:`~python:warnings.UserWarning`) instead of raising a
+        :class:`MemoryError`.
+
+        .. versionadded:: 0.15
+
     Attributes
     ----------
     sampling_strategy_ : dict
@@ -83,6 +115,20 @@ class RandomOverSampler(BaseOverSampler):
         names that are all strings.
 
         .. versionadded:: 0.10
+
+    degraded_ : bool
+        Defined only when ``memory_guard=True``. ``True`` means the sampler
+        skipped resampling and returned the input unchanged because the
+        estimated peak memory was too high or a :class:`MemoryError`
+        occurred; ``False`` means the resampling completed normally.
+
+        .. versionadded:: 0.15
+
+    degradation_message_ : str
+        Defined only when ``degraded_`` is ``True``. Human-readable
+        explanation of the degradation with actionable advice.
+
+        .. versionadded:: 0.15
 
     See Also
     --------
@@ -141,7 +187,14 @@ class RandomOverSampler(BaseOverSampler):
     _parameter_constraints: dict = {
         **BaseOverSampler._parameter_constraints,
         "shrinkage": [Interval(Real, 0, None, closed="left"), dict, None],
+        **MEMORY_PARAM_CONSTRAINTS,
     }
+
+    # The regular path seeds the output with ``X.copy()`` and accumulates a
+    # per-class copy of every bootstrapped row before ``vstack``: it
+    # duplicates the input and can transiently hold ~2-3x its size.
+    _copies_input_default = True
+    _supports_chunking_default = True
 
     def __init__(
         self,
@@ -149,10 +202,14 @@ class RandomOverSampler(BaseOverSampler):
         sampling_strategy="auto",
         random_state=None,
         shrinkage=None,
+        chunk_size=None,
+        memory_guard=False,
     ):
         super().__init__(sampling_strategy=sampling_strategy)
         self.random_state = random_state
         self.shrinkage = shrinkage
+        self.chunk_size = chunk_size
+        self.memory_guard = memory_guard
 
     def _check_X_y(self, X, y):
         y, binarize_y = check_target_type(y, indicate_one_vs_all=True)
@@ -160,13 +217,17 @@ class RandomOverSampler(BaseOverSampler):
         validate_data(self, X=X, y=y, reset=True, skip_check_array=True)
         return X, y, binarize_y
 
-    def _fit_resample(self, X, y):
+    def _build_bootstrap_indices(self, X, y):
+        """Resolve shrinkage settings and draw every bootstrap index.
+
+        All random number generation happens here, in the exact same order as
+        in the historical implementation, so that regular and chunked paths
+        share the same draws for a given ``random_state``.
+        """
         random_state = check_random_state(self.random_state)
 
         if isinstance(self.shrinkage, Real):
-            self.shrinkage_ = {
-                klass: self.shrinkage for klass in self.sampling_strategy_
-            }
+            self.shrinkage_ = dict.fromkeys(self.sampling_strategy_, self.shrinkage)
         elif self.shrinkage is None or isinstance(self.shrinkage, Mapping):
             self.shrinkage_ = self.shrinkage
 
@@ -188,6 +249,54 @@ class RandomOverSampler(BaseOverSampler):
                         f"Got {shrink_factor} for class {klass}."
                     )
 
+        sample_indices = range(X.shape[0])
+        bootstrap_per_class = []
+        for class_sample, num_samples in self.sampling_strategy_.items():
+            target_class_indices = np.flatnonzero(y == class_sample)
+            bootstrap_indices = random_state.choice(
+                target_class_indices,
+                size=num_samples,
+                replace=True,
+            )
+            sample_indices = np.append(sample_indices, bootstrap_indices)
+            bootstrap_per_class.append(
+                (class_sample, num_samples, target_class_indices, bootstrap_indices)
+            )
+
+        self.sample_indices_ = np.array(sample_indices)
+        return random_state, bootstrap_per_class
+
+    def _fit_resample(self, X, y):
+        chunk_size = validate_chunk_size(self.chunk_size)
+        random_state, bootstrap_per_class = self._build_bootstrap_indices(X, y)
+
+        if chunk_size is not None:
+            if self.shrinkage_ is not None:
+                raise ValueError(
+                    "The chunked path of RandomOverSampler does not support "
+                    "the smoothed bootstrap (`shrinkage` is not None). Use "
+                    "`chunk_size=None` with shrinkage, or remove the "
+                    "shrinkage to enable chunking."
+                )
+            # One explicit, documented conversion for pandas inputs; object
+            # and sparse inputs raise with an actionable message.
+            X_dense = coerce_dense_chunkable(X)
+            y_dense = np.asarray(y)
+            n_output = self.sample_indices_.shape[0]
+            X_resampled = np.empty_like(X_dense, shape=(n_output, X_dense.shape[1]))
+            y_resampled = np.empty_like(y_dense, shape=(n_output,))
+            fill_by_indices_chunked(
+                X_dense, self.sample_indices_, X_resampled, chunk_size
+            )
+            fill_by_indices_chunked(
+                y_dense.reshape(-1, 1),
+                self.sample_indices_,
+                y_resampled.reshape(-1, 1),
+                chunk_size,
+            )
+            return X_resampled, y_resampled
+
+        if self.shrinkage_ is not None:
             # smoothed bootstrap imposes to make numerical operation; we need
             # to be sure to have only numerical data in X
             try:
@@ -202,15 +311,12 @@ class RandomOverSampler(BaseOverSampler):
         X_resampled = [X.copy()]
         y_resampled = [y.copy()]
 
-        sample_indices = range(X.shape[0])
-        for class_sample, num_samples in self.sampling_strategy_.items():
-            target_class_indices = np.flatnonzero(y == class_sample)
-            bootstrap_indices = random_state.choice(
-                target_class_indices,
-                size=num_samples,
-                replace=True,
-            )
-            sample_indices = np.append(sample_indices, bootstrap_indices)
+        for (
+            class_sample,
+            num_samples,
+            target_class_indices,
+            bootstrap_indices,
+        ) in bootstrap_per_class:
             if self.shrinkage_ is not None:
                 # generate a smoothed bootstrap with a perturbation
                 n_samples, n_features = X.shape
@@ -239,8 +345,6 @@ class RandomOverSampler(BaseOverSampler):
 
             y_resampled.append(_safe_indexing(y, bootstrap_indices))
 
-        self.sample_indices_ = np.array(sample_indices)
-
         if sparse.issparse(X):
             X_resampled = sparse.vstack(X_resampled, format=X.format)
         else:
@@ -248,6 +352,55 @@ class RandomOverSampler(BaseOverSampler):
         y_resampled = np.hstack(y_resampled)
 
         return X_resampled, y_resampled
+
+    def _make_memory_profile(self, X, y, n_output, chunk_size):
+        row_bytes = _array_nbytes(X) // max(1, X.shape[0])
+        output_bytes = n_output * row_bytes + n_output * _dtype_nbytes(y)
+        # Regular path keeps X.copy(), every per-class bootstrap copy and the
+        # final vstacked output alive at the same time.
+        peak_full = output_bytes + 2 * _array_nbytes(X)
+        notes = [
+            "Regular path copies the whole input (X.copy()) and keeps every "
+            "per-class bootstrap array plus the vstacked output: peak ~2x "
+            "input plus the output.",
+        ]
+        chunked_supported = _supports_chunking(X)
+        if chunked_supported:
+            notes.append(
+                "Chunked path pre-allocates the output once and fills it in "
+                "place, removing the X.copy() and per-class accumulators."
+            )
+        else:
+            notes.append("Sparse or heterogeneous input: no chunked path is offered.")
+        peak_chunked = None
+        temp_chunked = None
+        if chunked_supported and chunk_size is not None:
+            temp_chunked = (
+                estimate_index_bytes(X.shape[0], n_output)
+                + chunk_size * row_bytes
+            )
+            peak_chunked = output_bytes + temp_chunked
+        if getattr(self, "shrinkage_", None) is not None:
+            peak_full += _array_nbytes(X)
+            notes.append(
+                "Smoothed bootstrap additionally allocates per-class "
+                "smoothing matrices and randn draws; chunking is not "
+                "supported with shrinkage."
+            )
+            chunked_supported = False
+            peak_chunked = None
+            temp_chunked = None
+        return MemoryProfile(
+            copies_input=True,
+            chunked_supported=chunked_supported,
+            peak_extra_bytes_full=peak_full,
+            peak_extra_bytes_chunked=peak_chunked,
+            output_bytes=output_bytes,
+            scaling="over-sampling: O((1 + alpha) * n * p) where alpha is the "
+            "fraction of added minority rows",
+            temp_extra_bytes_chunked=temp_chunked,
+            notes=tuple(notes),
+        )
 
     def _more_tags(self):
         return {

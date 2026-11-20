@@ -11,6 +11,17 @@ from sklearn_compat.utils.validation import validate_data
 from imblearn.under_sampling.base import BaseUnderSampler
 from imblearn.utils import Substitution, check_target_type
 from imblearn.utils._docstring import _random_state_docstring
+from imblearn.utils._memory import (
+    MEMORY_PARAM_CONSTRAINTS,
+    MemoryProfile,
+    _array_nbytes,
+    _dtype_nbytes,
+    _supports_chunking,
+    coerce_dense_chunkable,
+    estimate_index_bytes,
+    fill_by_indices_chunked,
+    validate_chunk_size,
+)
 from imblearn.utils._validation import _check_X
 
 
@@ -35,6 +46,24 @@ class RandomUnderSampler(BaseUnderSampler):
     replacement : bool, default=False
         Whether the sample is with or without replacement.
 
+    chunk_size : int or None, default=None
+        Number of rows materialised per chunk. When set, the resampled
+        arrays are pre-allocated and filled chunk by chunk so the temporary
+        memory footprint stays bounded by ``chunk_size * n_features``. The
+        selection indices are computed globally with the same random draws,
+        hence the chunked path returns identical results to the regular path
+        for a given ``random_state``. Only dense arrays are supported.
+
+        .. versionadded:: 0.15
+
+    memory_guard : bool, default=False
+        When ``True``, estimate the peak extra memory before resampling and
+        degrade to returning the input unchanged (with a
+        :class:`~python:warnings.UserWarning`) instead of raising a
+        :class:`MemoryError`.
+
+        .. versionadded:: 0.15
+
     Attributes
     ----------
     sampling_strategy_ : dict
@@ -57,6 +86,20 @@ class RandomUnderSampler(BaseUnderSampler):
         names that are all strings.
 
         .. versionadded:: 0.10
+
+    degraded_ : bool
+        Defined only when ``memory_guard=True``. ``True`` means the sampler
+        skipped resampling and returned the input unchanged because the
+        estimated peak memory was too high or a :class:`MemoryError`
+        occurred; ``False`` means the resampling completed normally.
+
+        .. versionadded:: 0.15
+
+    degradation_message_ : str
+        Defined only when ``degraded_`` is ``True``. Human-readable
+        explanation of the degradation with actionable advice.
+
+        .. versionadded:: 0.15
 
     See Also
     --------
@@ -88,14 +131,28 @@ class RandomUnderSampler(BaseUnderSampler):
         **BaseUnderSampler._parameter_constraints,
         "replacement": ["boolean"],
         "random_state": ["random_state"],
+        **MEMORY_PARAM_CONSTRAINTS,
     }
 
+    # The regular path only builds index arrays and then a single output
+    # array via safe indexing: it never copies the full input up-front.
+    _copies_input_default = False
+    _supports_chunking_default = True
+
     def __init__(
-        self, *, sampling_strategy="auto", random_state=None, replacement=False
+        self,
+        *,
+        sampling_strategy="auto",
+        random_state=None,
+        replacement=False,
+        chunk_size=None,
+        memory_guard=False,
     ):
         super().__init__(sampling_strategy=sampling_strategy)
         self.random_state = random_state
         self.replacement = replacement
+        self.chunk_size = chunk_size
+        self.memory_guard = memory_guard
 
     def _check_X_y(self, X, y):
         y, binarize_y = check_target_type(y, indicate_one_vs_all=True)
@@ -103,9 +160,13 @@ class RandomUnderSampler(BaseUnderSampler):
         X, y = validate_data(self, X=X, y=y, reset=True, skip_check_array=True)
         return X, y, binarize_y
 
-    def _fit_resample(self, X, y):
-        random_state = check_random_state(self.random_state)
+    def _select_indices(self, X, y):
+        """Compute the selection indices using the historical RNG sequence.
 
+        This is shared by the regular and chunked paths so that both produce
+        the exact same draws for a given ``random_state``.
+        """
+        random_state = check_random_state(self.random_state)
         idx_under = np.empty((0,), dtype=int)
 
         for target_class in np.unique(y):
@@ -126,10 +187,68 @@ class RandomUnderSampler(BaseUnderSampler):
                 ),
                 axis=0,
             )
+        return idx_under
 
+    def _fit_resample(self, X, y):
+        chunk_size = validate_chunk_size(self.chunk_size)
+        idx_under = self._select_indices(X, y)
         self.sample_indices_ = idx_under
 
+        if chunk_size is not None:
+            # One explicit, documented conversion for pandas inputs; object
+            # and sparse inputs raise with an actionable message.
+            X_dense = coerce_dense_chunkable(X)
+            y_dense = np.asarray(y)
+            X_resampled = np.empty_like(
+                X_dense, shape=(idx_under.shape[0], X_dense.shape[1])
+            )
+            y_resampled = np.empty_like(y_dense, shape=(idx_under.shape[0],))
+            fill_by_indices_chunked(X_dense, idx_under, X_resampled, chunk_size)
+            fill_by_indices_chunked(
+                y_dense.reshape(-1, 1),
+                idx_under,
+                y_resampled.reshape(-1, 1),
+                chunk_size,
+            )
+            return X_resampled, y_resampled
+
         return _safe_indexing(X, idx_under), _safe_indexing(y, idx_under)
+
+    def _make_memory_profile(self, X, y, n_output, chunk_size):
+        row_bytes = _array_nbytes(X) // max(1, X.shape[0])
+        output_bytes = n_output * row_bytes + n_output * _dtype_nbytes(y)
+        index_bytes = estimate_index_bytes(X.shape[0], n_output)
+        # Regular path: one output array + O(n) index bookkeeping. The input
+        # is not duplicated, so chunking cannot shrink the peak below it; it
+        # only bounds the size of each temporary fancy-indexed materialisation.
+        peak_full = output_bytes + index_bytes
+        chunked_supported = _supports_chunking(X)
+        peak_chunked = None
+        temp_chunked = None
+        if chunked_supported and chunk_size is not None:
+            temp_chunked = chunk_size * row_bytes
+            # The output itself dominates; the per-chunk scratch space adds at
+            # most ``chunk_size`` rows, so the peak stays comparable to the
+            # regular path rather than exploding with the input.
+            peak_chunked = max(peak_full, output_bytes + temp_chunked)
+        notes = (
+            "Input is never copied: only selection indices and the output "
+            "arrays are allocated.",
+            "Under-sampling already shrinks the data, so the chunked path "
+            "does not lower the peak: it bounds the size of each temporary "
+            "fancy-indexed copy to chunk_size rows.",
+        )
+        return MemoryProfile(
+            copies_input=False,
+            chunked_supported=chunked_supported,
+            peak_extra_bytes_full=peak_full,
+            peak_extra_bytes_chunked=peak_chunked,
+            output_bytes=output_bytes,
+            scaling="under-sampling: O(n_output * p); extra memory decreases "
+            "linearly with the number of removed rows",
+            temp_extra_bytes_chunked=temp_chunked,
+            notes=notes,
+        )
 
     def _more_tags(self):
         return {

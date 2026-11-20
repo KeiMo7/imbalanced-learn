@@ -15,6 +15,7 @@ from sklearn_compat.base import _fit_context
 from sklearn_compat.utils.validation import validate_data
 
 from imblearn.utils import check_sampling_strategy, check_target_type
+from imblearn.utils._memory import MemoryGuard, validate_chunk_size
 from imblearn.utils._tags import get_tags
 from imblearn.utils._validation import ArraysTransformer
 
@@ -97,6 +98,7 @@ class SamplerMixin(metaclass=ABCMeta):
             The corresponding label of `X_resampled`.
         """
         check_classification_targets(y)
+        original_X = X
         arrays_transformer = ArraysTransformer(X, y)
         X, y, binarize_y = self._check_X_y(X, y)
 
@@ -104,13 +106,61 @@ class SamplerMixin(metaclass=ABCMeta):
             self.sampling_strategy, y, self._sampling_type
         )
 
-        output = self._fit_resample(X, y, **params)
+        memory_guard = getattr(self, "memory_guard", False)
+        chunk_size = validate_chunk_size(getattr(self, "chunk_size", None))
+        guard = None
+        if memory_guard:
+            # Fitted attributes specific to the memory guard are only created
+            # when the feature is opted in, keeping the historical attribute
+            # set unchanged otherwise.
+            self.degraded_ = False
+            guard = MemoryGuard(
+                self,
+                X,
+                y,
+                self._expected_n_output(X, y),
+                chunk_size,
+                self._make_memory_profile,
+            )
+            if not guard.preflight():
+                # Degraded path: no resampling, original arrays are returned.
+                self.degraded_ = True
+                self.degradation_message_ = guard.message
+                return X, y
+
+        try:
+            output = self._fit_resample(X, y, **params)
+        except MemoryError as error:
+            if not memory_guard:
+                raise
+            # Release every partially allocated output before degrading.
+            self._release_partial_outputs()
+            guard.handle_memory_error(error)
+            self.degraded_ = True
+            self.degradation_message_ = guard.message
+            return X, y
 
         y_ = (
             label_binarize(output[1], classes=np.unique(y)) if binarize_y else output[1]
         )
 
         X_, y_ = arrays_transformer.transform(output[0], y_)
+        # The chunked path builds ndarrays and therefore loses the original
+        # row labels. Re-align them with the selected indices so that chunked
+        # and regular paths produce identical pandas objects.
+        sample_indices = getattr(self, "sample_indices_", None)
+        if (
+            sample_indices is not None
+            and hasattr(original_X, "columns")
+            and hasattr(X_, "columns")
+        ):
+            try:
+                new_index = original_X.index.to_numpy()[sample_indices]
+                X_.index = new_index
+                if hasattr(y_, "index"):
+                    y_.index = new_index
+            except (IndexError, TypeError):
+                pass
         return (X_, y_) if len(output) == 2 else (X_, y_, output[2])
 
     @abstractmethod
@@ -151,6 +201,114 @@ class BaseSampler(SamplerMixin, OneToOneFeatureMixin, BaseEstimator):
 
     def __init__(self, sampling_strategy="auto"):
         self.sampling_strategy = sampling_strategy
+
+    # ------------------------------------------------------------------
+    # Memory contract. The defaults describe a sampler whose memory
+    # characteristics are unknown to the framework: it does not claim a
+    # chunked path. Samplers with a bounded-memory implementation override
+    # ``_make_memory_profile`` (and expose ``chunk_size`` / ``memory_guard``
+    # constructor parameters).
+    # ------------------------------------------------------------------
+
+    #: Whether the regular implementation copies the full input array.
+    _copies_input_default = True
+    #: Whether a bounded-memory chunked path exists for this sampler.
+    _supports_chunking_default = False
+
+    def memory_profile(self, X, y):
+        """Report the memory characteristics of this sampler for ``X`` and ``y``.
+
+        The method never copies the data: it only inspects array metadata and
+        the resolved :attr:`sampling_strategy_` (it calls :meth:`fit` first
+        when the strategy has not been resolved yet).
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix} of shape (n_samples, n_features)
+            Matrix containing the data which have to be sampled.
+
+        y : array-like of shape (n_samples,)
+            Corresponding label for each sample in X.
+
+        Returns
+        -------
+        profile : :class:`~imblearn.utils._memory.MemoryProfile`
+            Dataclass exposing ``copies_input``, ``chunked_supported``,
+            estimated peak extra bytes for the full and chunked paths, the
+            output size, the scaling law and implementation notes.
+        """
+        if not hasattr(self, "sampling_strategy_"):
+            self.fit(X, y)
+        X_validated, y_validated, _ = self._check_X_y(X, y)
+        n_output = self._expected_n_output(X_validated, y_validated)
+        return self._make_memory_profile(
+            X_validated,
+            y_validated,
+            n_output,
+            validate_chunk_size(getattr(self, "chunk_size", None)),
+        )
+
+    def _expected_n_output(self, X, y):
+        """Best-effort number of output rows, used for memory estimates."""
+        strategy = getattr(self, "sampling_strategy_", None)
+        if strategy is None:
+            return X.shape[0]
+        n_output = X.shape[0]
+        if self._sampling_type == "over-sampling":
+            # Only the targeted classes grow; strategy values are the final
+            # number of samples requested for each of them.
+            for klass, target in strategy.items():
+                current = int(np.count_nonzero(y == klass))
+                n_output += max(0, int(target) - current)
+        elif self._sampling_type in ("under-sampling", "clean-sampling"):
+            for klass, target in strategy.items():
+                current = int(np.count_nonzero(y == klass))
+                n_output -= max(0, current - int(target))
+        return n_output
+
+    def _make_memory_profile(self, X, y, n_output, chunk_size):
+        from imblearn.utils._memory import (
+            MemoryProfile,
+            _array_nbytes,
+            _dtype_nbytes,
+            _supports_chunking,
+            estimate_index_bytes,
+        )
+
+        output_bytes = n_output * (
+            _array_nbytes(X) // max(1, X.shape[0])
+        ) + n_output * _dtype_nbytes(y)
+        chunked_supported = self._supports_chunking_default and _supports_chunking(X)
+        peak_chunked = None
+        temp_chunked = None
+        notes = (
+            "Generic profile: output allocation plus sampler-specific "
+            "temporary arrays; consult the sampler documentation for its "
+            "copy points.",
+        )
+        if chunked_supported and chunk_size is not None:
+            row_bytes = _array_nbytes(X) // max(1, X.shape[0])
+            temp_chunked = (
+                estimate_index_bytes(X.shape[0], n_output)
+                + chunk_size * row_bytes
+            )
+            peak_chunked = output_bytes + temp_chunked
+        return MemoryProfile(
+            copies_input=self._copies_input_default,
+            chunked_supported=chunked_supported,
+            peak_extra_bytes_full=output_bytes + _array_nbytes(X),
+            peak_extra_bytes_chunked=peak_chunked,
+            output_bytes=output_bytes,
+            scaling="O(n * p) plus output O(n_output * p)",
+            temp_extra_bytes_chunked=temp_chunked,
+            notes=notes,
+        )
+
+    def _release_partial_outputs(self):
+        """Drop sampler-specific partial allocations after a MemoryError."""
+        for attr in ("sample_indices_", "shrinkage_"):
+            if hasattr(self, attr):
+                delattr(self, attr)
 
     def _check_X_y(self, X, y, accept_sparse=None):
         if accept_sparse is None:

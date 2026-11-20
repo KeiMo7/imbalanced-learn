@@ -21,6 +21,11 @@ class BaseUnderSampler(BaseSampler):
 
     _sampling_type = "under-sampling"
 
+    # Under-samplers only select rows through safe indexing: they never
+    # duplicate the full input array up-front.
+    _copies_input_default = False
+    _supports_chunking_default = False
+
     _sampling_strategy_docstring = (
         """sampling_strategy : float, str, dict, callable, default='auto'
         Sampling information to sample the data set.
@@ -79,6 +84,11 @@ class BaseCleaningSampler(BaseSampler):
     """
 
     _sampling_type = "clean-sampling"
+
+    # Cleaning samplers compute a neighbour graph and keep a subset of the
+    # original rows via safe indexing; the input is not duplicated.
+    _copies_input_default = False
+    _supports_chunking_default = False
 
     _sampling_strategy_docstring = """sampling_strategy : str, list or callable
         Sampling information to sample the data set.

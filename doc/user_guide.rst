@@ -21,6 +21,7 @@ User Guide
    metrics.rst
    model_selection.rst
    common_pitfalls.rst
+   memory_management.rst
    Dataset loading utilities <datasets/index.rst>
    developers_utils.rst
    zzz_references.rst

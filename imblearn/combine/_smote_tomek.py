@@ -108,6 +108,10 @@ class SMOTETomek(BaseSampler):
 
     _sampling_type = "over-sampling"
 
+    # The embedded SMOTE stage copies the input (X.copy()).
+    _copies_input_default = True
+    _supports_chunking_default = False
+
     _parameter_constraints: dict = {
         **BaseOverSampler._parameter_constraints,
         "smote": [SMOTE, None],
