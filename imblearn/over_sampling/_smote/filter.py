@@ -14,9 +14,11 @@ from sklearn.base import clone
 from sklearn.svm import SVC
 from sklearn.utils import _safe_indexing, check_random_state
 from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
+from sklearn.utils.validation import _num_samples
 
 from imblearn.over_sampling._smote.base import BaseSMOTE
 from imblearn.over_sampling.base import BaseOverSampler
+from imblearn.safety import _current_provenance
 from imblearn.utils import Substitution, check_neighbors_object
 from imblearn.utils._docstring import _random_state_docstring
 
@@ -207,6 +209,15 @@ class BorderlineSMOTE(BaseSMOTE):
             else:  # self.kind == "borderline-2"
                 X_to_sample_from = X  # consider the whole dataset
                 y_to_check_neighbors = y
+
+            # provenance maps (no-op unless tracking is enabled)
+            sink = _current_provenance()
+            if sink is not None:
+                sink.class_index_map = target_class_indices[mask_danger]
+                if self.kind == "borderline-1":
+                    sink.neighbor_index_map = target_class_indices
+                else:
+                    sink.neighbor_index_map = np.arange(_num_samples(X))
 
             self.nn_k_.fit(X_to_sample_from)
             nns = self.nn_k_.kneighbors(X_danger, return_distance=False)[:, 1:]
@@ -443,11 +454,20 @@ class SVMSMOTE(BaseSMOTE):
             self.nn_k_.fit(X_class)
             fractions = random_state.beta(10, 10)
             n_generated_samples = int(fractions * (n_samples + 1))
+
+            sink = _current_provenance()
+            if sink is not None:
+                # neighbours always index into the class subset
+                sink.neighbor_index_map = target_class_indices
             if np.count_nonzero(danger_bool) > 0:
                 nns = self.nn_k_.kneighbors(
                     _safe_indexing(support_vector, np.flatnonzero(danger_bool)),
                     return_distance=False,
                 )[:, 1:]
+                if sink is not None:
+                    sink.class_index_map = support_index[
+                        np.flatnonzero(np.logical_not(noise_bool))
+                    ][np.flatnonzero(danger_bool)]
 
                 X_new_1, y_new_1 = self._make_samples(
                     _safe_indexing(support_vector, np.flatnonzero(danger_bool)),
@@ -464,6 +484,10 @@ class SVMSMOTE(BaseSMOTE):
                     _safe_indexing(support_vector, np.flatnonzero(safety_bool)),
                     return_distance=False,
                 )[:, 1:]
+                if sink is not None:
+                    sink.class_index_map = support_index[
+                        np.flatnonzero(np.logical_not(noise_bool))
+                    ][np.flatnonzero(safety_bool)]
 
                 X_new_2, y_new_2 = self._make_samples(
                     _safe_indexing(support_vector, np.flatnonzero(safety_bool)),

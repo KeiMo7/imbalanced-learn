@@ -14,6 +14,18 @@ Bug fixes
 Enhancements
 ............
 
+- Added the :mod:`imblearn.safety` module, an opt-in layer that guards
+  against resampling validation/test data
+  (:class:`~imblearn.safety.ResamplingGuard`,
+  :class:`~imblearn.safety.GuardedSampler`), records synthetic-sample
+  provenance with sample identifiers only
+  (:class:`~imblearn.safety.ResamplingProvenance`), and pre-checks the
+  feasibility and the achieved value of resampling ratios
+  (:func:`~imblearn.safety.check_sampling_ratio`,
+  :class:`~imblearn.safety.SamplingRatioReport`). Existing samplers are
+  unchanged when the module is not used.
+  :pr:`TBD` by :user:`KeiMo7`.
+
 Compatibility
 .............
 

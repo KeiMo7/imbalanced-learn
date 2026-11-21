@@ -18,6 +18,7 @@ from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 
 from imblearn.over_sampling._smote.base import BaseSMOTE
 from imblearn.over_sampling.base import BaseOverSampler
+from imblearn.safety import _current_provenance
 from imblearn.utils import Substitution
 from imblearn.utils._docstring import _n_jobs_docstring, _random_state_docstring
 
@@ -290,6 +291,14 @@ class KMeansSMOTE(BaseSMOTE):
                 cluster_n_samples = int(
                     math.ceil(n_samples * cluster_weights[valid_cluster_idx])
                 )
+
+                sink = _current_provenance()
+                if sink is not None:
+                    cluster_class_global = valid_cluster[
+                        np.flatnonzero(y_cluster == class_sample)
+                    ]
+                    sink.class_index_map = cluster_class_global
+                    sink.neighbor_index_map = cluster_class_global
 
                 X_new, y_new = self._make_samples(
                     X_cluster_class,

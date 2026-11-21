@@ -34,6 +34,7 @@ from imblearn.over_sampling import (
     RandomOverSampler,
 )
 from imblearn.pipeline import Pipeline
+from imblearn.safety import GuardedSampler
 from imblearn.under_sampling import (
     ClusterCentroids,
     CondensedNearestNeighbour,
@@ -95,7 +96,7 @@ PER_ESTIMATOR_CHECK_PARAMS: dict = {
     }
 }
 
-SKIPPED_ESTIMATORS = [SMOTENC]
+SKIPPED_ESTIMATORS = [SMOTENC, GuardedSampler]
 
 
 def _tested_estimators(type_filter=None):

@@ -190,3 +190,150 @@ ensure that we have similar performance::
 
 We see that the statistical performance are very close to the cross-validation
 study that we perform, without any sign of over-optimistic results.
+
+Opt-in resampling guards and synthetic-sample provenance
+========================================================
+
+.. versionadded:: 0.15
+
+The leakage pattern shown above is only caught if the caller remembers the
+correct ordering of *split first, resample second*. The
+:mod:`imblearn.safety` module makes the boundary between training data and
+held-out data enforceable instead of conventional. Everything in this module
+is **opt-in**: samplers used directly behave exactly as before, with no extra
+computation.
+
+Guarding against resampling a validation or test set
+-----------------------------------------------------
+
+A :class:`~imblearn.safety.ResamplingGuard` records the role of each array.
+Arrays are registered **by Python object identity** -- their contents are
+neither copied nor hashed -- so the guard stays cheap on million-row datasets.
+A :class:`~imblearn.safety.GuardedSampler` wraps any existing sampler and
+refuses to run when the input is registered as validation or test data::
+
+  >>> from imblearn.over_sampling import SMOTE
+  >>> from imblearn.safety import GuardedSampler, ResamplingGuard
+  >>> from imblearn.safety import ResamplingLeakageError
+  >>> X_train, X_test, y_train, y_test = train_test_split(
+  ...     X, y, stratify=y, random_state=0
+  ... )
+  >>> guard = ResamplingGuard()
+  >>> guard.register_test(X_test, name="X_test")
+  >>> safe_smote = GuardedSampler(SMOTE(random_state=42), guard=guard)
+  >>> try:
+  ...     safe_smote.fit_resample(X_test, y_test)
+  ... except ResamplingLeakageError as err:
+  ...     print(type(err).__name__)
+  ResamplingLeakageError
+
+The error message names the registered array, its role (``"validation"`` or
+``"test"``), the sampler and the intercepted step (``fit`` or
+``fit_resample``). Arrays that were never registered default to the
+``"train"`` role, matching the historical behaviour.
+
+:class:`~imblearn.safety.GuardedSampler` is itself a sampler and can be used
+as a step of an :class:`~imblearn.pipeline.Pipeline`, including inside
+:func:`~sklearn.model_selection.cross_validate`. The wrapper clones the
+wrapped sampler for each fit while sharing the same guard, so every
+cross-validation fold is checked independently.
+
+Tracing synthetic samples back to their parents
+------------------------------------------------
+
+When resampling runs inside a ``ResamplingGuard.fold()`` context (or through a
+:class:`~imblearn.safety.GuardedSampler`), each call stores a
+:class:`~imblearn.safety.ResamplingProvenance` record in
+``sampler.provenance_`` and accumulates it on ``guard.provenance_records_``::
+
+  >>> guard = ResamplingGuard()
+  >>> safe_smote = GuardedSampler(SMOTE(random_state=42), guard=guard)
+  >>> with guard.fold():
+  ...     X_resampled, y_resampled = safe_smote.fit_resample(X_train, y_train)
+  >>> provenance = safe_smote.provenance_
+  >>> provenance.support
+  'full'
+  >>> # output position 0 of the first synthetic block -> two input positions
+  >>> provenance.parents_of(X_train.shape[0])
+  (..., ...)
+
+The record only contains **sample identifiers** -- integer positions in the
+input array -- and never feature values, so sensitive fields cannot leak
+through the audit trail. ``ResamplingProvenance.to_dict()`` returns a
+JSON-serialisable view for audit logs.
+
+Support depends on what each sampler can report honestly:
+
+* ``"full"``: every synthetic sample names its parent input positions. This
+  covers the SMOTE family (``SMOTE``, ``BorderlineSMOTE``, ``SVMSMOTE``,
+  ``KMeansSMOTE``, ``SMOTENC``, ``SMOTEN``), where each synthetic point is
+  generated between two identified neighbours.
+* ``"partial"``: the sampler exposes which input rows were selected through
+  ``sample_indices_`` (e.g. ``RandomOverSampler``, ``RandomUnderSampler``)
+  but cannot explain a generation rule.
+* ``"not_supported"``: no lineage is available (e.g. ``ADASYN`` and custom
+  :class:`~imblearn.FunctionSampler` callables). The record says so
+  explicitly instead of inventing parents; ``parent_sample_ids`` is then
+  ``None``.
+
+Cross-validation fold isolation
+-------------------------------
+
+Each ``guard.fold()`` context owns a private provenance sink, backed by
+:class:`contextvars.ContextVar`, so synthetic samples and lineage produced in
+one fold can never be carried into the next one. Records are published on the
+guard only when the fold exits without an error; if sampling is interrupted,
+no half-built record and no partial output array is kept.
+
+Checking target ratios before and after resampling
+--------------------------------------------------
+
+:func:`~imblearn.safety.check_sampling_ratio` resolves a
+``sampling_strategy`` against the current class counts without touching any
+array, and returns a :class:`~imblearn.safety.SamplingRatioReport`. Two
+unreachable cases are distinguished:
+
+* ``reason="insufficient_samples"``: the target asks for more rows than
+  exist (e.g. under-sampling a class of 180 rows down to 5000);
+* ``reason="parameter_conflict"``: contradictory parameters (e.g. an
+  over-sampling target smaller than the current class size).
+
+Calling ``record_actual(y_resampled)`` on the report fills the observed
+counts and the per-class deviation (``actual - target``), so the achieved
+ratio can be checked against the requested one.
+
+Known limitations
+-----------------
+
+* Role registration relies on object identity. Passing a *different* array
+  object that happens to hold the same rows (a copy, a view materialised by a
+  transformer) is treated as a new, unregistered array. Register the exact
+  object you hand to the sampler, or place the sampler inside a pipeline so
+  the guarded step always receives the training partition.
+* With joblib-backed parallelism (``n_jobs > 1``), worker processes do not
+  share the parent's guard registry; run the guarded pipeline with
+  ``n_jobs=1`` or register arrays inside each worker. Sequential
+  cross-validation and single-process pipelines are fully supported.
+* Provenance positions refer to the array passed to ``fit_resample``. When a
+  transformer precedes the sampler in a pipeline, the identifiers index the
+  transformed training data of that fold, not the raw source rows.
+* The guard does not replace the :class:`~imblearn.pipeline.Pipeline`
+  pattern; it enforces it. Samplers still never modify their input arrays and
+  still return new arrays, whether guarded or not.
+
+Serialization and compatibility boundary
+----------------------------------------
+
+The safety layer is additive and stores no state on the existing samplers:
+
+* Pickles of samplers, pipelines and models written by previous
+  imbalanced-learn versions load unchanged, and their ``fit_resample``
+  outputs are bit-for-bit identical. Old artefacts simply have no
+  ``provenance_`` attribute; guard them with a
+  :class:`~imblearn.safety.GuardedSampler` at call time to obtain lineage for
+  new resampling runs.
+* :class:`~imblearn.safety.ResamplingProvenance` and
+  :class:`~imblearn.safety.SamplingRatioReport` are plain dataclasses that can
+  be serialised through their ``to_dict()`` method. They are not required to
+  unpickle an old model and should be stored alongside (not inside) legacy
+  artefacts.

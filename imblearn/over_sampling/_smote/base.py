@@ -32,6 +32,7 @@ from sklearn_compat.utils.validation import validate_data
 
 from imblearn.metrics.pairwise import ValueDifferenceMetric
 from imblearn.over_sampling.base import BaseOverSampler
+from imblearn.safety import _current_provenance
 from imblearn.utils import Substitution, check_neighbors_object, check_target_type
 from imblearn.utils._docstring import _random_state_docstring
 from imblearn.utils._validation import _check_X
@@ -119,7 +120,53 @@ class BaseSMOTE(BaseOverSampler):
 
         X_new = self._generate_samples(X, nn_data, nn_num, rows, cols, steps, y_type, y)
         y_new = np.full(n_samples, fill_value=y_type, dtype=y_dtype)
+        self._record_provenance(X, nn_num, rows, cols, n_samples)
         return X_new, y_new
+
+    def _record_provenance(self, X, nn_num, rows, cols, n_samples):
+        """Record the parent sample identifiers of the synthetic samples.
+
+        Only integer positions are stored -- never feature values -- so the
+        audit trail cannot leak sensitive data. The hook is a no-op unless
+        provenance tracking was explicitly enabled, and the recorded
+        information is never part of the sampler's returned arrays.
+        """
+        sink = _current_provenance()
+        if sink is None:
+            return
+        # Lazily create the per-call container so plain sampler usage carries
+        # no extra attribute.
+        parents = getattr(self, "_provenance_parents_", None)
+        if parents is None:
+            parents = self._provenance_parents_ = {}
+        # Output positions of synthetic samples start after all input rows.
+        offset = getattr(self, "_provenance_offset_", sink.n_input_samples)
+        base_map = sink.class_index_map
+        neighbor_map = sink.neighbor_index_map
+        if neighbor_map is None:
+            neighbor_map = base_map
+
+        neighbor_positions = nn_num[rows, cols]
+        for local_idx in range(n_samples):
+            base_local = int(rows[local_idx])
+            neighbor_local = int(neighbor_positions[local_idx])
+            if base_map is not None:
+                # translate positions in the class subset back to positions
+                # in the array handed to fit_resample
+                base_global = int(base_map[base_local])
+                neighbor_global = int(neighbor_map[neighbor_local])
+            else:
+                base_global, neighbor_global = base_local, neighbor_local
+            parents[int(offset)] = (base_global, neighbor_global)
+            offset += 1
+        self._provenance_offset_ = offset
+
+    def _set_provenance_class_map(self, target_class_indices):
+        """Publish the mapping from class-subset positions to input positions."""
+        sink = _current_provenance()
+        if sink is not None:
+            sink.class_index_map = np.asarray(target_class_indices)
+            sink.neighbor_index_map = sink.class_index_map
 
     def _generate_samples(
         self, X, nn_data, nn_num, rows, cols, steps, y_type=None, y=None
@@ -356,6 +403,7 @@ class SMOTE(BaseSMOTE):
                 continue
             target_class_indices = np.flatnonzero(y == class_sample)
             X_class = _safe_indexing(X, target_class_indices)
+            self._set_provenance_class_map(target_class_indices)
 
             self.nn_k_.fit(X_class)
             nns = self.nn_k_.kneighbors(X_class, return_distance=False)[:, 1:]
@@ -650,6 +698,7 @@ class SMOTENC(SMOTE):
                 continue
             target_class_indices = np.flatnonzero(y == class_sample)
             X_class = _safe_indexing(X_encoded, target_class_indices)
+            self._set_provenance_class_map(target_class_indices)
 
             _, var = csr_mean_variance_axis0(
                 X_class[:, : self.continuous_features_.size]
@@ -938,7 +987,30 @@ class SMOTEN(SMOTE):
             axis=1,
         )
         y_new = np.full(n_samples, fill_value=klass, dtype=y_dtype)
+        self._record_smoten_provenance(samples_indices, nn_indices)
         return X_new, y_new
+
+    def _record_smoten_provenance(self, samples_indices, nn_indices):
+        """Record SMOTEN parent identifiers: the drawn row and its neighbours."""
+        sink = _current_provenance()
+        if sink is None:
+            return
+        parents = getattr(self, "_provenance_parents_", None)
+        if parents is None:
+            parents = self._provenance_parents_ = {}
+        offset = getattr(self, "_provenance_offset_", 0)
+        class_map = sink.class_index_map
+        for local_idx, base_local in enumerate(samples_indices):
+            neighbor_locals = np.asarray(nn_indices[int(base_local)])
+            if class_map is not None:
+                globals_ = [int(class_map[int(base_local)])]
+                globals_.extend(int(class_map[int(n)]) for n in neighbor_locals)
+            else:
+                globals_ = [int(base_local)]
+                globals_.extend(int(n) for n in neighbor_locals)
+            parents[int(offset)] = tuple(globals_)
+            offset += 1
+        self._provenance_offset_ = offset
 
     def _fit_resample(self, X, y):
         if sparse.issparse(X):
@@ -969,11 +1041,16 @@ class SMOTEN(SMOTE):
             n_categories=[len(cat) for cat in self.categorical_encoder_.categories_]
         ).fit(X_encoded, y)
 
+        if _current_provenance() is not None:
+            # offsets index into the full output, which starts with all inputs
+            self._provenance_offset_ = _current_provenance().n_input_samples
+
         for class_sample, n_samples in self.sampling_strategy_.items():
             if n_samples == 0:
                 continue
             target_class_indices = np.flatnonzero(y == class_sample)
             X_class = _safe_indexing(X_encoded, target_class_indices)
+            self._set_provenance_class_map(target_class_indices)
 
             X_class_dist = vdm.pairwise(X_class)
             self.nn_k_.fit(X_class_dist)
