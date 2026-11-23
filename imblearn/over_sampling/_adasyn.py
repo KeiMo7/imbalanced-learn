@@ -9,16 +9,21 @@ import numbers
 import numpy as np
 from scipy import sparse
 from sklearn.utils import _safe_indexing, check_random_state
-from sklearn.utils._param_validation import HasMethods, Interval
+from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 
 from imblearn.over_sampling.base import BaseOverSampler
 from imblearn.utils import Substitution, check_neighbors_object
-from imblearn.utils._docstring import _random_state_docstring
+from imblearn.utils._docstring import (
+    _random_state_docstring,
+    _weight_strategy_docstring,
+)
+from imblearn.utils._sample_weight import WEIGHT_STRATEGIES, generated_weights
 
 
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class ADASYN(BaseOverSampler):
     """Oversample using Adaptive Synthetic (ADASYN) algorithm.
@@ -47,6 +52,8 @@ class ADASYN(BaseOverSampler):
           instance, it could correspond to a
           :class:`~sklearn.neighbors.NearestNeighbors` but could be extended to
           any compatible class.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -118,6 +125,7 @@ class ADASYN(BaseOverSampler):
             Interval(numbers.Integral, 1, None, closed="left"),
             HasMethods(["kneighbors", "kneighbors_graph"]),
         ],
+        "weight_strategy": [StrOptions(set(WEIGHT_STRATEGIES)), callable, None],
     }
 
     def __init__(
@@ -126,10 +134,12 @@ class ADASYN(BaseOverSampler):
         sampling_strategy="auto",
         random_state=None,
         n_neighbors=5,
+        weight_strategy="inherit",
     ):
         super().__init__(sampling_strategy=sampling_strategy)
         self.random_state = random_state
         self.n_neighbors = n_neighbors
+        self.weight_strategy = weight_strategy
 
     def _validate_estimator(self):
         """Create the necessary objects for ADASYN"""
@@ -137,12 +147,14 @@ class ADASYN(BaseOverSampler):
             "n_neighbors", self.n_neighbors, additional_neighbor=1
         )
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
         random_state = check_random_state(self.random_state)
 
         X_resampled = [X.copy()]
         y_resampled = [y.copy()]
+        if sample_weight is not None:
+            weight_resampled = [np.asarray(sample_weight, dtype=float).copy()]
 
         for class_sample, n_samples in self.sampling_strategy_.items():
             if n_samples == 0:
@@ -183,7 +195,8 @@ class ADASYN(BaseOverSampler):
             rows = np.repeat(enumerated_class_indices, n_samples_generate)
             cols = random_state.choice(n_neighbors, size=n_samples)
             diffs = X_class[nns[rows, cols]] - X_class[rows]
-            steps = random_state.uniform(size=(n_samples, 1))
+            dense_steps = random_state.uniform(size=(n_samples, 1))
+            steps = dense_steps
 
             if sparse.issparse(X):
                 sparse_func = type(X).__name__
@@ -196,6 +209,18 @@ class ADASYN(BaseOverSampler):
             y_new = np.full(n_samples, fill_value=class_sample, dtype=y.dtype)
             X_resampled.append(X_new)
             y_resampled.append(y_new)
+            if sample_weight is not None:
+                weight_class = np.asarray(sample_weight, dtype=float)[
+                    target_class_indices
+                ]
+                weight_new = generated_weights(
+                    self._weight_strategy_,
+                    base_weight=weight_class[rows],
+                    neighbor_weight=weight_class[nns[rows, cols]],
+                    steps=dense_steps,
+                    pool_weight=weight_class,
+                )
+                weight_resampled.append(weight_new)
 
         if sparse.issparse(X):
             X_resampled = sparse.vstack(X_resampled, format=X.format)
@@ -203,7 +228,9 @@ class ADASYN(BaseOverSampler):
             X_resampled = np.vstack(X_resampled)
         y_resampled = np.hstack(y_resampled)
 
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, np.hstack(weight_resampled)
 
     def _more_tags(self):
         return {

@@ -22,6 +22,12 @@ class BaseOverSampler(BaseSampler):
 
     _sampling_type = "over-sampling"
 
+    # Over-samplers keep the input rows and append generated rows.  They
+    # implement the ``sample_weight`` contract and accept a ``weight_strategy``
+    # that defines how the generated rows inherit weights.
+    _sample_weight_supported = True
+    _weight_propagation = "generated"
+
     _sampling_strategy_docstring = (
         """sampling_strategy : float, str, dict or callable, default='auto'
         Sampling information to resample the data set.

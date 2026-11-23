@@ -1,0 +1,123 @@
+{
+  "dataset": {
+    "n_samples": 400,
+    "n_features": 6,
+    "class_counts": {
+      "0": 100,
+      "1": 300
+    },
+    "weight_range": {
+      "min": 0.5,
+      "max": 4.97151542600202,
+      "mean": 1.2651822196685343
+    }
+  },
+  "under_sampling": {
+    "RandomUnderSampler": {
+      "n_rows_before": 400,
+      "n_rows_after": 200,
+      "row_aligned": true,
+      "matches_manual": true,
+      "n_distinct_weights": 101,
+      "weight_sum": 406.0728878674136
+    },
+    "NearMiss": {
+      "n_rows_before": 400,
+      "n_rows_after": 200,
+      "row_aligned": true,
+      "matches_manual": true,
+      "n_distinct_weights": 101,
+      "weight_sum": 406.0728878674136
+    }
+  },
+  "over_sampling": {
+    "RandomOverSampler[inherit]": {
+      "n_rows_before": 400,
+      "n_rows_after": 600,
+      "n_generated": 200,
+      "original_weights_preserved": true,
+      "generated_weight_range": {
+        "min": 2.0729478992943617,
+        "max": 4.97151542600202
+      },
+      "generated_weights_inherited": true
+    },
+    "SMOTE[inherit]": {
+      "n_rows_before": 400,
+      "n_rows_after": 600,
+      "n_generated": 200,
+      "original_weights_preserved": true,
+      "generated_weight_range": {
+        "min": 2.0729478992943617,
+        "max": 4.97151542600202
+      },
+      "generated_weights_inherited": true
+    },
+    "SMOTE[nearest]": {
+      "n_rows_before": 400,
+      "n_rows_after": 600,
+      "n_generated": 200,
+      "original_weights_preserved": true,
+      "generated_weight_range": {
+        "min": 2.0785886372192146,
+        "max": 4.9077142798327245
+      }
+    },
+    "SMOTE[cluster]": {
+      "n_rows_before": 400,
+      "n_rows_after": 600,
+      "n_generated": 200,
+      "original_weights_preserved": true,
+      "generated_weight_range": {
+        "min": 3.5607288786741362,
+        "max": 3.5607288786741362
+      },
+      "generated_weights_equal_class_mean": true
+    },
+    "weighted_vs_replication": {
+      "n_copies": 3,
+      "total_weight_weighted": {
+        "0": 900.0,
+        "1": 900.0
+      },
+      "count_replicated": {
+        "0": 900,
+        "1": 900
+      },
+      "equivalent": true
+    }
+  },
+  "chain": {
+    "steps": [
+      "SMOTE",
+      "RandomUnderSampler"
+    ],
+    "n_rows": 600,
+    "row_aligned": true,
+    "matches_explicit_chain": true,
+    "trainer_sees_resampled_weights": true,
+    "trainer_matches_direct_fit": true
+  },
+  "failure_modes": {
+    "negative_weight": {
+      "raised": "ValueError",
+      "message": "RandomUnderSampler: 'sample_weight' contains 1 negative value(s) (min=-1, max=1, mean=0.995). Weights must be non-negative."
+    },
+    "length_mismatch": {
+      "raised": "ValueError",
+      "message": "RandomUnderSampler: 'sample_weight' has 399 rows while X and y have 400 rows. Weights must be aligned row-wise with the data."
+    },
+    "all_zero": {
+      "raised": "ValueError",
+      "message": "RandomUnderSampler: all 400 sample weights are zero. Refusing to silently fall back to uniform weights."
+    },
+    "unsupported_strategy": {
+      "raised": "InvalidParameterError",
+      "message": "The 'weight_strategy' parameter of SMOTE must be a str among {'inherit', 'cluster', 'nearest'}, a callable or None. Got 'unknown' instead."
+    }
+  },
+  "unweighted_unchanged": {
+    "returns_two_outputs": true,
+    "same_random_indices": true
+  }
+}

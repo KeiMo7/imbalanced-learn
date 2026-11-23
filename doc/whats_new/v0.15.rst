@@ -14,6 +14,20 @@ Bug fixes
 Enhancements
 ............
 
+- Samplers now treat ``sample_weight`` as a first-class citizen. Passing
+  ``sample_weight`` to ``fit_resample`` returns the resampled weights as a third
+  output, aligned row-wise with the resampled ``X`` and ``y``. Original weights
+  are kept for retained rows; generated rows follow the new ``weight_strategy``
+  parameter (``"inherit"``, ``"nearest"``, ``"cluster"`` or a callable).
+  Zero-weight rows are excluded from neighbour searches and sample generation,
+  and negative, missing, mismatched or all-zero weights are rejected before any
+  sampling starts. A new ``class_weight`` argument applies class-level
+  multiplicative factors on top of the row weights. :pr:`TBD` by :user:`KeiMo7`.
+- :class:`~imblearn.pipeline.Pipeline` propagates the resampled weights through
+  its sampling steps and forwards them to the final estimator, keeping ``X``,
+  ``y`` and ``sample_weight`` aligned. The unweighted path is unchanged.
+  :pr:`TBD` by :user:`KeiMo7`.
+
 Compatibility
 .............
 

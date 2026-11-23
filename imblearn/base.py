@@ -9,14 +9,23 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 from sklearn.base import BaseEstimator, OneToOneFeatureMixin
 from sklearn.preprocessing import label_binarize
+from sklearn.utils import _safe_indexing
 from sklearn.utils._metadata_requests import METHODS
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn_compat.base import _fit_context
 from sklearn_compat.utils.validation import validate_data
 
 from imblearn.utils import check_sampling_strategy, check_target_type
+from imblearn.utils._sample_weight import (
+    WEIGHT_STRATEGIES,
+    _as_weight_array,
+    check_effective_sample_weight,
+    log_weight_summary,
+    reject_unsupported_weight_strategy,
+    validate_weight_strategy,
+)
 from imblearn.utils._tags import get_tags
-from imblearn.utils._validation import ArraysTransformer
+from imblearn.utils._validation import ArraysTransformer, WeightArraysTransformer
 
 if "fit_predict" not in METHODS:
     METHODS.append("fit_predict")
@@ -41,6 +50,40 @@ class SamplerMixin(metaclass=ABCMeta):
     """
 
     _estimator_type = "sampler"
+
+    #: Whether the sampler implements the ``sample_weight`` contract.  Derived
+    #: classes opt in; the default keeps third-party samplers on the
+    #: historical, weight-agnostic path.
+    _sample_weight_supported = False
+    #: How the resampled weights are obtained.  ``"indices"`` means the
+    #: sampler exposes ``sample_indices_`` aligned with its output and the
+    #: weights are a row subset; ``"generated"`` means the sampler creates new
+    #: rows and computes their weights itself; ``"none"`` means the sampler
+    #: cannot propagate weights.
+    _weight_propagation = "none"
+    _weight_strategies = WEIGHT_STRATEGIES
+
+    def _check_weight_params(self):
+        """Validate the weight-related parameters before any sampling work.
+
+        This is deliberately separated from the actual resampling so that a
+        sampling chain fails *before* any data is touched when a rule is not
+        supported, instead of failing half-way through.
+        """
+        weight_strategy = getattr(self, "weight_strategy", None)
+        if weight_strategy is not None:
+            reject_unsupported_weight_strategy(self)
+            self._weight_strategy_ = validate_weight_strategy(
+                weight_strategy,
+                supported=self._weight_strategies,
+                sampler_name=self.__class__.__name__,
+            )
+        else:
+            self._weight_strategy_ = None
+
+    def _accepts_sample_weight(self):
+        """Whether this sampler implements the sample-weight contract."""
+        return getattr(self, "_sample_weight_supported", False)
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, **params):
@@ -69,10 +112,11 @@ class SamplerMixin(metaclass=ABCMeta):
         self.sampling_strategy_ = check_sampling_strategy(
             self.sampling_strategy, y, self._sampling_type
         )
+        self._check_weight_params()
         return self
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit_resample(self, X, y, **params):
+    def fit_resample(self, X, y, sample_weight=None, class_weight=None, **params):
         """Resample the dataset.
 
         Parameters
@@ -83,6 +127,25 @@ class SamplerMixin(metaclass=ABCMeta):
 
         y : array-like of shape (n_samples,)
             Corresponding label for each sample in X.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights associated with each row of ``X`` and ``y``.  When
+            provided, the sampler returns the resampled weights as a third
+            output.  Original weights are kept for the retained samples; the
+            weights of synthesised samples follow ``weight_strategy``.
+
+            See :ref:`sample_weight` for the exact semantics.
+
+            .. versionadded:: 0.15
+
+        class_weight : None, "balanced" or dict, default=None
+            Class-level multiplicative factors applied on top of
+            ``sample_weight`` (``effective = sample_weight * class_weight[y]``).
+            When a sampler exposes a ``class_weight`` constructor parameter,
+            that value is used unless this argument is provided.  It never
+            changes the number of samples requested by ``sampling_strategy``.
+
+            .. versionadded:: 0.15
 
         **params : dict
             Extra parameters to use by the sampler.
@@ -95,23 +158,176 @@ class SamplerMixin(metaclass=ABCMeta):
 
         y_resampled : array-like of shape (n_samples_new,)
             The corresponding label of `X_resampled`.
+
+        sample_weight_resampled : array-like of shape (n_samples_new,)
+            The weight of each resampled row, aligned row-wise with
+            ``X_resampled`` and ``y_resampled``.  Only returned when
+            ``sample_weight`` is not ``None``.
         """
         check_classification_targets(y)
         arrays_transformer = ArraysTransformer(X, y)
+
+        if class_weight is not None:
+            params.pop("class_weight", None)
+        else:
+            class_weight = params.pop("class_weight", None)
+        if class_weight is None:
+            class_weight = getattr(self, "class_weight", None)
+
+        weight_transformer = WeightArraysTransformer(sample_weight)
+
+        if sample_weight is not None or class_weight is not None:
+            n_samples = getattr(y, "shape", None)
+            n_samples = n_samples[0] if n_samples is not None else len(y)
+            if sample_weight is not None:
+                sample_weight = _as_weight_array(
+                    sample_weight,
+                    n_samples=n_samples,
+                    sampler_name=self.__class__.__name__,
+                )
+
         X, y, binarize_y = self._check_X_y(X, y)
 
-        self.sampling_strategy_ = check_sampling_strategy(
-            self.sampling_strategy, y, self._sampling_type
+        self._check_weight_params()
+
+        effective_weight = check_effective_sample_weight(
+            sample_weight,
+            class_weight,
+            y,
+            sampler_name=self.__class__.__name__,
         )
 
-        output = self._fit_resample(X, y, **params)
+        if effective_weight is None:
+            self.sampling_strategy_ = check_sampling_strategy(
+                self.sampling_strategy, y, self._sampling_type
+            )
+            # Historical path: no weight argument is forwarded at all, so the
+            # random sequence and the outputs are strictly unchanged.
+            output = self._fit_resample(X, y, **params)
+            y_ = (
+                label_binarize(output[1], classes=np.unique(y))
+                if binarize_y
+                else output[1]
+            )
+            X_, y_ = arrays_transformer.transform(output[0], y_)
+            return (X_, y_) if len(output) == 2 else (X_, y_, output[2])
+
+        if not self._accepts_sample_weight():
+            raise ValueError(
+                f"{self.__class__.__name__} does not support 'sample_weight'. "
+                "Remove the weights or use a sampler that implements the "
+                "sample-weight contract."
+            )
+
+        log_weight_summary(self.__class__.__name__, effective_weight)
+
+        return self._fit_resample_weighted(
+            X,
+            y,
+            effective_weight,
+            binarize_y=binarize_y,
+            arrays_transformer=arrays_transformer,
+            weight_transformer=weight_transformer,
+            params=params,
+        )
+
+    def _fit_resample_weighted(
+        self,
+        X,
+        y,
+        sample_weight,
+        *,
+        binarize_y,
+        arrays_transformer,
+        weight_transformer,
+        params,
+    ):
+        """Run a sampler that received sample weights.
+
+        Zero-weight samples are removed before any sampling decision: they
+        must not appear in neighbour searches nor be used to synthesise new
+        samples.  The ``sample_indices_`` attribute, when present, is mapped
+        back to the original (unfiltered) rows so that downstream consumers
+        such as the balanced ensembles keep indexing the original data.
+        """
+        positive = sample_weight > 0
+        if positive.all():
+            X_in, y_in, w_in = X, y, sample_weight
+            mapping = None
+        else:
+            X_in = _safe_indexing(X, positive)
+            y_in = _safe_indexing(y, positive)
+            w_in = sample_weight[positive]
+            mapping = np.flatnonzero(positive)
+
+        self.sampling_strategy_ = check_sampling_strategy(
+            self.sampling_strategy, y_in, self._sampling_type
+        )
+
+        propagation = getattr(self, "_weight_propagation", "generated")
+        if propagation == "indices":
+            output = self._fit_resample(X_in, y_in, **params)
+            weights = self._weights_from_indices(output, w_in)
+        elif propagation == "chain":
+            output = self._fit_resample(X_in, y_in, sample_weight=w_in, **params)
+            if len(output) != 3:
+                raise ValueError(
+                    f"{self.__class__.__name__} did not propagate 'sample_weight' "
+                    "through its sampling chain."
+                )
+            weights = np.asarray(output[2], dtype=float)
+        elif propagation == "generated":
+            output = self._fit_resample(X_in, y_in, sample_weight=w_in, **params)
+            if len(output) != 3:
+                raise ValueError(
+                    f"{self.__class__.__name__} did not return resampled "
+                    "'sample_weight'."
+                )
+            weights = np.asarray(output[2], dtype=float)
+            output = output[:2]
+        else:  # pragma: no cover - defensive
+            raise ValueError(
+                f"{self.__class__.__name__} declares an unknown weight "
+                f"propagation mode {propagation!r}."
+            )
+
+        if mapping is not None:
+            sample_indices = getattr(self, "sample_indices_", None)
+            if sample_indices is not None:
+                self.sample_indices_ = mapping[np.asarray(sample_indices, dtype=int)]
 
         y_ = (
-            label_binarize(output[1], classes=np.unique(y)) if binarize_y else output[1]
+            label_binarize(output[1], classes=np.unique(y_in))
+            if binarize_y
+            else output[1]
         )
-
         X_, y_ = arrays_transformer.transform(output[0], y_)
-        return (X_, y_) if len(output) == 2 else (X_, y_, output[2])
+
+        weights = weight_transformer.transform(weights, X_, y_, output[1])
+        return X_, y_, weights
+
+    def _weights_from_indices(self, output, sample_weight):
+        """Derive resampled weights from ``sample_indices_``."""
+        if len(output) != 2:
+            raise ValueError(
+                f"{self.__class__.__name__} returned an unexpected number of "
+                "outputs while propagating sample weights."
+            )
+        sample_indices = getattr(self, "sample_indices_", None)
+        if sample_indices is None:
+            raise ValueError(
+                f"{self.__class__.__name__} does not expose 'sample_indices_' "
+                "and cannot align resampled sample weights."
+            )
+        sample_indices = np.asarray(sample_indices, dtype=int)
+        if sample_indices.shape[0] != output[1].shape[0]:
+            raise ValueError(
+                f"{self.__class__.__name__}: 'sample_indices_' has "
+                f"{sample_indices.shape[0]} entries while the resampled target "
+                f"has {output[1].shape[0]} rows."
+            )
+        return np.asarray(sample_weight, dtype=float)[sample_indices]
+
 
     @abstractmethod
     def _fit_resample(self, X, y, **params):
@@ -180,7 +396,7 @@ class BaseSampler(SamplerMixin, OneToOneFeatureMixin, BaseEstimator):
         """
         return super().fit(X, y, **params)
 
-    def fit_resample(self, X, y, **params):
+    def fit_resample(self, X, y, sample_weight=None, class_weight=None, **params):
         """Resample the dataset.
 
         Parameters
@@ -192,6 +408,10 @@ class BaseSampler(SamplerMixin, OneToOneFeatureMixin, BaseEstimator):
         y : array-like of shape (n_samples,)
             Corresponding label for each sample in X.
 
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights associated with each row of ``X`` and ``y``.
+            See :meth:`SamplerMixin.fit_resample`.
+
         Returns
         -------
         X_resampled : {array-like, dataframe, sparse matrix} of shape \
@@ -200,8 +420,13 @@ class BaseSampler(SamplerMixin, OneToOneFeatureMixin, BaseEstimator):
 
         y_resampled : array-like of shape (n_samples_new,)
             The corresponding label of `X_resampled`.
+
+        sample_weight_resampled : array-like of shape (n_samples_new,)
+            Only returned when ``sample_weight`` is not ``None``.
         """
-        return super().fit_resample(X, y, **params)
+        return super().fit_resample(
+            X, y, sample_weight=sample_weight, class_weight=class_weight, **params
+        )
 
     def _more_tags(self):
         return {"X_types": ["2darray", "sparse", "dataframe"]}
@@ -388,7 +613,7 @@ class FunctionSampler(BaseSampler):
 
         return self
 
-    def fit_resample(self, X, y):
+    def fit_resample(self, X, y, sample_weight=None, class_weight=None):
         """Resample the dataset.
 
         Parameters
@@ -399,6 +624,19 @@ class FunctionSampler(BaseSampler):
         y : array-like of shape (n_samples,)
             Corresponding label for each sample in X.
 
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights associated with each row of ``X`` and ``y``.  When
+            provided, the callable is expected to return the resampled weights
+            as a third output; the weights are otherwise passed through.
+
+            .. versionadded:: 0.15
+
+        class_weight : None, "balanced" or dict, default=None
+            Class-level multiplicative factors applied on top of
+            ``sample_weight``.
+
+            .. versionadded:: 0.15
+
         Returns
         -------
         X_resampled : {array-like, sparse matrix} of shape \
@@ -407,9 +645,29 @@ class FunctionSampler(BaseSampler):
 
         y_resampled : array-like of shape (n_samples_new,)
             The corresponding label of `X_resampled`.
+
+        sample_weight_resampled : array-like of shape (n_samples_new,)
+            Only returned when ``sample_weight`` is not ``None``.
         """
         self._validate_params()
         arrays_transformer = ArraysTransformer(X, y)
+
+        effective_weight = None
+        if sample_weight is not None or class_weight is not None:
+            n_samples = getattr(y, "shape", None)
+            n_samples = n_samples[0] if n_samples is not None else len(y)
+            if sample_weight is not None:
+                sample_weight = _as_weight_array(
+                    sample_weight,
+                    n_samples=n_samples,
+                    sampler_name=self.__class__.__name__,
+                )
+            effective_weight = check_effective_sample_weight(
+                sample_weight,
+                class_weight,
+                np.asarray(y),
+                sampler_name=self.__class__.__name__,
+            )
 
         if self.validate:
             check_classification_targets(y)
@@ -419,7 +677,15 @@ class FunctionSampler(BaseSampler):
             self.sampling_strategy, y, self._sampling_type
         )
 
-        output = self._fit_resample(X, y)
+        if effective_weight is None:
+            output = self._fit_resample(X, y)
+        else:
+            if self.func is None:
+                # The identity function does not resample: keep the weights as
+                # they are, row-wise aligned with ``X`` and ``y``.
+                output = (X, y, effective_weight)
+            else:
+                output = self._fit_resample_weighted(X, y, effective_weight)
 
         if self.validate:
             y_ = (
@@ -435,4 +701,37 @@ class FunctionSampler(BaseSampler):
     def _fit_resample(self, X, y):
         func = _identity if self.func is None else self.func
         output = func(X, y, **(self.kw_args if self.kw_args else {}))
+        return output
+
+    def _fit_resample_weighted(self, X, y, sample_weight):
+        from inspect import Parameter, signature
+
+        func = self.func
+        if func is None:
+            return X, y, sample_weight
+        try:
+            accepts_weight = (
+                "sample_weight" in signature(func).parameters
+                or any(
+                    param.kind is Parameter.VAR_KEYWORD
+                    for param in signature(func).parameters.values()
+                )
+            )
+        except (TypeError, ValueError):
+            accepts_weight = False
+        if not accepts_weight:
+            raise ValueError(
+                "FunctionSampler: 'func' does not accept a 'sample_weight' "
+                "argument and cannot propagate weights."
+            )
+        output = func(
+            X, y, sample_weight=sample_weight, **(self.kw_args if self.kw_args else {})
+        )
+        if len(output) != 3:
+            raise ValueError(
+                "FunctionSampler: 'sample_weight' was provided but 'func' did not "
+                "return resampled weights. Return a 3-tuple "
+                "(X_resampled, y_resampled, sample_weight_resampled) or call the "
+                "sampler without weights."
+            )
         return output

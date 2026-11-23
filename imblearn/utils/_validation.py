@@ -29,6 +29,48 @@ SAMPLING_KIND = (
 TARGET_KIND = ("binary", "multiclass", "multilabel-indicator")
 
 
+class WeightArraysTransformer:
+    """Convert resampled weights to the type used by the user.
+
+    The weights always follow the same conversion as ``y``: a list in input
+    gives a list in output, a pandas ``Series`` keeps its name and so on.
+    This keeps ``X``, ``y`` and ``sample_weight`` aligned and avoids guessing
+    the row association by position.
+    """
+
+    def __init__(self, sample_weight):
+        self.props = (
+            self._gets_props(sample_weight) if sample_weight is not None else None
+        )
+
+    @staticmethod
+    def _gets_props(array):
+        props = {}
+        props["type"] = array.__class__.__name__
+        props["name"] = getattr(array, "name", None)
+        props["dtypes"] = getattr(array, "dtype", None)
+        return props
+
+    def transform(self, sample_weight, X, y, y_internal):
+        """Return ``sample_weight`` with the same container as the input."""
+        if self.props is None:
+            return sample_weight
+
+        type_ = self.props["type"].lower()
+        if type_ == "list":
+            return np.asarray(sample_weight).tolist()
+        if type_ == "series":
+            import pandas as pd
+
+            return pd.Series(
+                np.asarray(sample_weight),
+                dtype=self.props["dtypes"],
+                name=self.props["name"],
+                index=getattr(X, "index", None),
+            )
+        return sample_weight
+
+
 class ArraysTransformer:
     """A class to convert sampler output arrays to their original types."""
 

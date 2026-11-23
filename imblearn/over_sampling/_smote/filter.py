@@ -18,12 +18,16 @@ from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 from imblearn.over_sampling._smote.base import BaseSMOTE
 from imblearn.over_sampling.base import BaseOverSampler
 from imblearn.utils import Substitution, check_neighbors_object
-from imblearn.utils._docstring import _random_state_docstring
+from imblearn.utils._docstring import (
+    _random_state_docstring,
+    _weight_strategy_docstring,
+)
 
 
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class BorderlineSMOTE(BaseSMOTE):
     """Over-sampling using Borderline SMOTE.
@@ -71,6 +75,8 @@ class BorderlineSMOTE(BaseSMOTE):
     kind : {{"borderline-1", "borderline-2"}}, default='borderline-1'
         The type of SMOTE algorithm to use one of the following options:
         ``'borderline-1'``, ``'borderline-2'``.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -164,11 +170,13 @@ class BorderlineSMOTE(BaseSMOTE):
         k_neighbors=5,
         m_neighbors=10,
         kind="borderline-1",
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
         self.m_neighbors = m_neighbors
         self.kind = kind
@@ -179,11 +187,16 @@ class BorderlineSMOTE(BaseSMOTE):
             "m_neighbors", self.m_neighbors, additional_neighbor=1
         )
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
 
         X_resampled = X.copy()
         y_resampled = y.copy()
+        weight_resampled = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).copy()
+        )
 
         self.in_danger_indices = {}
         for class_sample, n_samples in self.sampling_strategy_.items():
@@ -210,27 +223,53 @@ class BorderlineSMOTE(BaseSMOTE):
 
             self.nn_k_.fit(X_to_sample_from)
             nns = self.nn_k_.kneighbors(X_danger, return_distance=False)[:, 1:]
-            X_new, y_new = self._make_samples(
-                X_danger,
-                y.dtype,
-                class_sample,
-                X_to_sample_from,
-                nns,
-                n_samples,
-                y=y_to_check_neighbors,
-            )
+            if sample_weight is None:
+                X_new, y_new = self._make_samples(
+                    X_danger,
+                    y.dtype,
+                    class_sample,
+                    X_to_sample_from,
+                    nns,
+                    n_samples,
+                    y=y_to_check_neighbors,
+                )
+            else:
+                # ``X_danger`` and ``X_to_sample_from`` are both extracted from
+                # the original rows, so the weights stay aligned with them.
+                weight_all = np.asarray(sample_weight, dtype=float)
+                weight_danger = weight_all[target_class_indices[mask_danger]]
+                if self.kind == "borderline-1":
+                    weight_to_sample_from = weight_all[target_class_indices]
+                else:  # borderline-2 samples the whole dataset
+                    weight_to_sample_from = weight_all
+                X_new, y_new, weight_new = self._make_samples(
+                    X_danger,
+                    y.dtype,
+                    class_sample,
+                    X_to_sample_from,
+                    nns,
+                    n_samples,
+                    y=y_to_check_neighbors,
+                    base_weight=weight_danger,
+                    nn_weight=weight_to_sample_from,
+                    pool_weight=weight_danger,
+                )
+                weight_resampled = np.hstack((weight_resampled, weight_new))
             if sparse.issparse(X_new):
                 X_resampled = sparse.vstack([X_resampled, X_new])
             else:
                 X_resampled = np.vstack((X_resampled, X_new))
             y_resampled = np.hstack((y_resampled, y_new))
 
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, weight_resampled
 
 
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class SVMSMOTE(BaseSMOTE):
     """Over-sampling using SVM-SMOTE.
@@ -281,6 +320,8 @@ class SVMSMOTE(BaseSMOTE):
 
     out_step : float, default=0.5
         Step size when extrapolating.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -378,11 +419,13 @@ class SVMSMOTE(BaseSMOTE):
         m_neighbors=10,
         svm_estimator=None,
         out_step=0.5,
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
         self.m_neighbors = m_neighbors
         self.svm_estimator = svm_estimator
@@ -399,11 +442,16 @@ class SVMSMOTE(BaseSMOTE):
         else:
             self.svm_estimator_ = clone(self.svm_estimator)
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
         random_state = check_random_state(self.random_state)
         X_resampled = X.copy()
         y_resampled = y.copy()
+        weight_resampled = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).copy()
+        )
 
         for class_sample, n_samples in self.sampling_strategy_.items():
             if n_samples == 0:
@@ -427,6 +475,7 @@ class SVMSMOTE(BaseSMOTE):
             noise_bool = self._in_danger_noise(
                 self.nn_m_, support_vector, class_sample, y, kind="noise"
             )
+            support_index = support_index[np.logical_not(noise_bool)]
             support_vector = _safe_indexing(
                 support_vector, np.flatnonzero(np.logical_not(noise_bool))
             )
@@ -449,15 +498,35 @@ class SVMSMOTE(BaseSMOTE):
                     return_distance=False,
                 )[:, 1:]
 
-                X_new_1, y_new_1 = self._make_samples(
-                    _safe_indexing(support_vector, np.flatnonzero(danger_bool)),
-                    y.dtype,
-                    class_sample,
-                    X_class,
-                    nns,
-                    n_generated_samples,
-                    step_size=1.0,
-                )
+                if sample_weight is None:
+                    X_new_1, y_new_1 = self._make_samples(
+                        _safe_indexing(support_vector, np.flatnonzero(danger_bool)),
+                        y.dtype,
+                        class_sample,
+                        X_class,
+                        nns,
+                        n_generated_samples,
+                        step_size=1.0,
+                    )
+                else:
+                    X_new_1, y_new_1, weight_new_1 = self._make_samples(
+                        _safe_indexing(support_vector, np.flatnonzero(danger_bool)),
+                        y.dtype,
+                        class_sample,
+                        X_class,
+                        nns,
+                        n_generated_samples,
+                        step_size=1.0,
+                        base_weight=np.asarray(sample_weight, dtype=float)[
+                            support_index[danger_bool]
+                        ],
+                        nn_weight=np.asarray(sample_weight, dtype=float)[
+                            target_class_indices
+                        ],
+                        pool_weight=np.asarray(sample_weight, dtype=float)[
+                            target_class_indices
+                        ],
+                    )
 
             if np.count_nonzero(safety_bool) > 0:
                 nns = self.nn_k_.kneighbors(
@@ -465,15 +534,35 @@ class SVMSMOTE(BaseSMOTE):
                     return_distance=False,
                 )[:, 1:]
 
-                X_new_2, y_new_2 = self._make_samples(
-                    _safe_indexing(support_vector, np.flatnonzero(safety_bool)),
-                    y.dtype,
-                    class_sample,
-                    X_class,
-                    nns,
-                    n_samples - n_generated_samples,
-                    step_size=-self.out_step,
-                )
+                if sample_weight is None:
+                    X_new_2, y_new_2 = self._make_samples(
+                        _safe_indexing(support_vector, np.flatnonzero(safety_bool)),
+                        y.dtype,
+                        class_sample,
+                        X_class,
+                        nns,
+                        n_samples - n_generated_samples,
+                        step_size=-self.out_step,
+                    )
+                else:
+                    X_new_2, y_new_2, weight_new_2 = self._make_samples(
+                        _safe_indexing(support_vector, np.flatnonzero(safety_bool)),
+                        y.dtype,
+                        class_sample,
+                        X_class,
+                        nns,
+                        n_samples - n_generated_samples,
+                        step_size=-self.out_step,
+                        base_weight=np.asarray(sample_weight, dtype=float)[
+                            support_index[safety_bool]
+                        ],
+                        nn_weight=np.asarray(sample_weight, dtype=float)[
+                            target_class_indices
+                        ],
+                        pool_weight=np.asarray(sample_weight, dtype=float)[
+                            target_class_indices
+                        ],
+                    )
 
             if np.count_nonzero(danger_bool) > 0 and np.count_nonzero(safety_bool) > 0:
                 if sparse.issparse(X_resampled):
@@ -481,17 +570,31 @@ class SVMSMOTE(BaseSMOTE):
                 else:
                     X_resampled = np.vstack((X_resampled, X_new_1, X_new_2))
                 y_resampled = np.concatenate((y_resampled, y_new_1, y_new_2), axis=0)
+                if sample_weight is not None:
+                    weight_resampled = np.concatenate(
+                        (weight_resampled, weight_new_1, weight_new_2)
+                    )
             elif np.count_nonzero(danger_bool) == 0:
                 if sparse.issparse(X_resampled):
                     X_resampled = sparse.vstack([X_resampled, X_new_2])
                 else:
                     X_resampled = np.vstack((X_resampled, X_new_2))
                 y_resampled = np.concatenate((y_resampled, y_new_2), axis=0)
+                if sample_weight is not None:
+                    weight_resampled = np.concatenate(
+                        (weight_resampled, weight_new_2)
+                    )
             elif np.count_nonzero(safety_bool) == 0:
                 if sparse.issparse(X_resampled):
                     X_resampled = sparse.vstack([X_resampled, X_new_1])
                 else:
                     X_resampled = np.vstack((X_resampled, X_new_1))
                 y_resampled = np.concatenate((y_resampled, y_new_1), axis=0)
+                if sample_weight is not None:
+                    weight_resampled = np.concatenate(
+                        (weight_resampled, weight_new_1)
+                    )
 
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, weight_resampled

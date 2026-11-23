@@ -33,7 +33,11 @@ from sklearn_compat.utils.validation import validate_data
 from imblearn.metrics.pairwise import ValueDifferenceMetric
 from imblearn.over_sampling.base import BaseOverSampler
 from imblearn.utils import Substitution, check_neighbors_object, check_target_type
-from imblearn.utils._docstring import _random_state_docstring
+from imblearn.utils._docstring import (
+    _random_state_docstring,
+    _weight_strategy_docstring,
+)
+from imblearn.utils._sample_weight import WEIGHT_STRATEGIES, generated_weights
 from imblearn.utils._validation import _check_X
 
 
@@ -46,6 +50,7 @@ class BaseSMOTE(BaseOverSampler):
             Interval(numbers.Integral, 1, None, closed="left"),
             HasMethods(["kneighbors", "kneighbors_graph"]),
         ],
+        "weight_strategy": [StrOptions(set(WEIGHT_STRATEGIES)), callable, None],
     }
 
     def __init__(
@@ -53,10 +58,12 @@ class BaseSMOTE(BaseOverSampler):
         sampling_strategy="auto",
         random_state=None,
         k_neighbors=5,
+        weight_strategy="inherit",
     ):
         super().__init__(sampling_strategy=sampling_strategy)
         self.random_state = random_state
         self.k_neighbors = k_neighbors
+        self.weight_strategy = weight_strategy
 
     def _validate_estimator(self):
         """Check the NN estimators shared across the different SMOTE
@@ -67,7 +74,18 @@ class BaseSMOTE(BaseOverSampler):
         )
 
     def _make_samples(
-        self, X, y_dtype, y_type, nn_data, nn_num, n_samples, step_size=1.0, y=None
+        self,
+        X,
+        y_dtype,
+        y_type,
+        nn_data,
+        nn_num,
+        n_samples,
+        step_size=1.0,
+        y=None,
+        base_weight=None,
+        nn_weight=None,
+        pool_weight=None,
     ):
         """A support function that returns artificial samples constructed along
         the line connecting nearest neighbours.
@@ -101,6 +119,19 @@ class BaseSMOTE(BaseOverSampler):
             The true target associated with `nn_data`. Used by Borderline SMOTE-2 to
             weight the distances in the sample generation process.
 
+        base_weight : ndarray of shape (n_samples,), default=None
+            Weight of the samples in `X`, aligned row-wise. When provided, the
+            weights of the generated samples are computed according to
+            ``weight_strategy`` and returned as a third output.
+
+        nn_weight : ndarray of shape (n_samples_all,), default=None
+            Weight of the samples in `nn_data`, aligned row-wise. Defaults to
+            ``base_weight`` when `nn_data` is `X`.
+
+        pool_weight : ndarray, default=None
+            Weight of the whole generation pool, used by the ``"cluster"``
+            strategy.
+
         Returns
         -------
         X_new : {ndarray, sparse matrix} of shape (n_samples_new, n_features)
@@ -108,6 +139,10 @@ class BaseSMOTE(BaseOverSampler):
 
         y_new : ndarray of shape (n_samples_new,)
             Target values for synthetic samples.
+
+        weight_new : ndarray of shape (n_samples_new,), optional
+            Weights of the synthetic samples. Only returned when
+            ``base_weight`` is provided.
         """
         random_state = check_random_state(self.random_state)
         samples_indices = random_state.randint(low=0, high=nn_num.size, size=n_samples)
@@ -119,7 +154,21 @@ class BaseSMOTE(BaseOverSampler):
 
         X_new = self._generate_samples(X, nn_data, nn_num, rows, cols, steps, y_type, y)
         y_new = np.full(n_samples, fill_value=y_type, dtype=y_dtype)
-        return X_new, y_new
+        if base_weight is None:
+            return X_new, y_new
+
+        if nn_weight is None:
+            nn_weight = base_weight
+        weight_new = generated_weights(
+            self._weight_strategy_,
+            base_weight=np.asarray(base_weight, dtype=float)[rows],
+            neighbor_weight=np.asarray(nn_weight, dtype=float)[nn_num[rows, cols]],
+            steps=steps,
+            pool_weight=(
+                np.asarray(pool_weight if pool_weight is not None else base_weight)
+            ),
+        )
+        return X_new, y_new, weight_new
 
     def _generate_samples(
         self, X, nn_data, nn_num, rows, cols, steps, y_type=None, y=None
@@ -238,6 +287,7 @@ class BaseSMOTE(BaseOverSampler):
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class SMOTE(BaseSMOTE):
     """Class to perform over-sampling using SMOTE.
@@ -265,6 +315,8 @@ class SMOTE(BaseSMOTE):
           instance, it could correspond to a
           :class:`~sklearn.neighbors.NearestNeighbors` but could be extended to
           any compatible class.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -338,18 +390,22 @@ class SMOTE(BaseSMOTE):
         sampling_strategy="auto",
         random_state=None,
         k_neighbors=5,
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
 
         X_resampled = [X.copy()]
         y_resampled = [y.copy()]
+        if sample_weight is not None:
+            weight_resampled = [np.asarray(sample_weight, dtype=float).copy()]
 
         for class_sample, n_samples in self.sampling_strategy_.items():
             if n_samples == 0:
@@ -359,9 +415,25 @@ class SMOTE(BaseSMOTE):
 
             self.nn_k_.fit(X_class)
             nns = self.nn_k_.kneighbors(X_class, return_distance=False)[:, 1:]
-            X_new, y_new = self._make_samples(
-                X_class, y.dtype, class_sample, X_class, nns, n_samples, 1.0
-            )
+            if sample_weight is None:
+                X_new, y_new = self._make_samples(
+                    X_class, y.dtype, class_sample, X_class, nns, n_samples, 1.0
+                )
+            else:
+                weight_class = np.asarray(sample_weight, dtype=float)[
+                    target_class_indices
+                ]
+                X_new, y_new, weight_new = self._make_samples(
+                    X_class,
+                    y.dtype,
+                    class_sample,
+                    X_class,
+                    nns,
+                    n_samples,
+                    1.0,
+                    base_weight=weight_class,
+                )
+                weight_resampled.append(weight_new)
             X_resampled.append(X_new)
             y_resampled.append(y_new)
 
@@ -370,13 +442,15 @@ class SMOTE(BaseSMOTE):
         else:
             X_resampled = np.vstack(X_resampled)
         y_resampled = np.hstack(y_resampled)
-
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, np.hstack(weight_resampled)
 
 
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class SMOTENC(SMOTE):
     """Synthetic Minority Over-sampling Technique for Nominal and Continuous.
@@ -426,6 +500,8 @@ class SMOTENC(SMOTE):
           instance, it could correspond to a
           :class:`~sklearn.neighbors.NearestNeighbors` but could be extended to
           any compatible class.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -538,11 +614,13 @@ class SMOTENC(SMOTE):
         sampling_strategy="auto",
         random_state=None,
         k_neighbors=5,
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
         self.categorical_features = categorical_features
         self.categorical_encoder = categorical_encoder
@@ -592,7 +670,7 @@ class SMOTENC(SMOTE):
                 "features. It requires some categorical features."
             )
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self.n_features_ = _num_features(X)
         self._validate_column_types(X)
         self._validate_estimator()
@@ -642,6 +720,8 @@ class SMOTENC(SMOTE):
         X_encoded = sparse.hstack((X_continuous, X_ohe), format="csr", dtype=dtype_ohe)
         X_resampled = [X_encoded.copy()]
         y_resampled = [y.copy()]
+        if sample_weight is not None:
+            weight_resampled = [np.asarray(sample_weight, dtype=float).copy()]
 
         # SMOTE resampling starts here
         self.median_std_ = {}
@@ -678,14 +758,32 @@ class SMOTENC(SMOTE):
 
             self.nn_k_.fit(X_class)
             nns = self.nn_k_.kneighbors(X_class, return_distance=False)[:, 1:]
-            X_new, y_new = self._make_samples(
-                X_class, y.dtype, class_sample, X_class, nns, n_samples, 1.0
-            )
+            if sample_weight is None:
+                X_new, y_new = self._make_samples(
+                    X_class, y.dtype, class_sample, X_class, nns, n_samples, 1.0
+                )
+            else:
+                weight_class = np.asarray(sample_weight, dtype=float)[
+                    target_class_indices
+                ]
+                X_new, y_new, weight_new = self._make_samples(
+                    X_class,
+                    y.dtype,
+                    class_sample,
+                    X_class,
+                    nns,
+                    n_samples,
+                    1.0,
+                    base_weight=weight_class,
+                )
+                weight_resampled.append(weight_new)
             X_resampled.append(X_new)
             y_resampled.append(y_new)
 
         X_resampled = sparse.vstack(X_resampled, format=X_encoded.format)
         y_resampled = np.hstack(y_resampled)
+        if sample_weight is not None:
+            weight_resampled = np.hstack(weight_resampled)
         # SMOTE resampling ends here
 
         # reverse the encoding of the categorical features
@@ -722,7 +820,9 @@ class SMOTENC(SMOTE):
         else:
             X_resampled = X_resampled[:, indices_reordered]
 
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, weight_resampled
 
     def _generate_samples(self, X, nn_data, nn_num, rows, cols, steps, y_type, y=None):
         """Generate a synthetic sample with an additional steps for the
@@ -782,6 +882,7 @@ class SMOTENC(SMOTE):
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class SMOTEN(SMOTE):
     """Synthetic Minority Over-sampling Technique for Nominal.
@@ -815,6 +916,8 @@ class SMOTEN(SMOTE):
           instance, it could correspond to a
           :class:`~sklearn.neighbors.NearestNeighbors` but could be extended to
           any compatible class.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -898,11 +1001,13 @@ class SMOTEN(SMOTE):
         sampling_strategy="auto",
         random_state=None,
         k_neighbors=5,
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
         self.categorical_encoder = categorical_encoder
 
@@ -924,7 +1029,9 @@ class SMOTEN(SMOTE):
         super()._validate_estimator()
         self.nn_k_.set_params(metric="precomputed")
 
-    def _make_samples(self, X_class, klass, y_dtype, nn_indices, n_samples):
+    def _make_samples(
+        self, X_class, klass, y_dtype, nn_indices, n_samples, base_weight=None
+    ):
         random_state = check_random_state(self.random_state)
         # generate sample indices that will be used to generate new samples
         samples_indices = random_state.choice(
@@ -938,9 +1045,23 @@ class SMOTEN(SMOTE):
             axis=1,
         )
         y_new = np.full(n_samples, fill_value=klass, dtype=y_dtype)
-        return X_new, y_new
+        if base_weight is None:
+            return X_new, y_new
 
-    def _fit_resample(self, X, y):
+        # The generated sample is a category-wise mode of an actual
+        # neighbourhood: there is no interpolation, so the weight is computed
+        # with a zero step (``"nearest"`` therefore behaves like ``"inherit"``).
+        base_weight = np.asarray(base_weight, dtype=float)
+        weight_new = generated_weights(
+            self._weight_strategy_,
+            base_weight=base_weight[samples_indices],
+            neighbor_weight=base_weight[samples_indices],
+            steps=np.zeros(n_samples, dtype=float),
+            pool_weight=base_weight,
+        )
+        return X_new, y_new, weight_new
+
+    def _fit_resample(self, X, y, sample_weight=None):
         if sparse.issparse(X):
             X_sparse_format = X.format
             X = X.toarray()
@@ -958,6 +1079,8 @@ class SMOTEN(SMOTE):
 
         X_resampled = [X.copy()]
         y_resampled = [y.copy()]
+        if sample_weight is not None:
+            weight_resampled = [np.asarray(sample_weight, dtype=float).copy()]
 
         if self.categorical_encoder is None:
             self.categorical_encoder_ = OrdinalEncoder(dtype=np.int32)
@@ -980,9 +1103,23 @@ class SMOTEN(SMOTE):
             # the kneigbors search will include the sample itself which is
             # expected from the original algorithm
             nn_indices = self.nn_k_.kneighbors(X_class_dist, return_distance=False)
-            X_new, y_new = self._make_samples(
-                X_class, class_sample, y.dtype, nn_indices, n_samples
-            )
+            if sample_weight is None:
+                X_new, y_new = self._make_samples(
+                    X_class, class_sample, y.dtype, nn_indices, n_samples
+                )
+            else:
+                weight_class = np.asarray(sample_weight, dtype=float)[
+                    target_class_indices
+                ]
+                X_new, y_new, weight_new = self._make_samples(
+                    X_class,
+                    class_sample,
+                    y.dtype,
+                    nn_indices,
+                    n_samples,
+                    base_weight=weight_class,
+                )
+                weight_resampled.append(weight_new)
 
             X_new = self.categorical_encoder_.inverse_transform(X_new)
             X_resampled.append(X_new)
@@ -990,13 +1127,17 @@ class SMOTEN(SMOTE):
 
         X_resampled = np.vstack(X_resampled)
         y_resampled = np.hstack(y_resampled)
+        weight_out = (
+            None if sample_weight is None else np.hstack(weight_resampled)
+        )
 
         if X_sparse_format == "csr":
-            return sparse.csr_matrix(X_resampled), y_resampled
+            X_resampled = sparse.csr_matrix(X_resampled)
         elif X_sparse_format == "csc":
-            return sparse.csc_matrix(X_resampled), y_resampled
-        else:
+            X_resampled = sparse.csc_matrix(X_resampled)
+        if weight_out is None:
             return X_resampled, y_resampled
+        return X_resampled, y_resampled, weight_out
 
     def _more_tags(self):
         return {"X_types": ["2darray", "dataframe", "string"]}

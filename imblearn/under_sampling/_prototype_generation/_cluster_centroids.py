@@ -13,6 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
 from sklearn.utils import _safe_indexing
 from sklearn.utils._param_validation import HasMethods, StrOptions
+from sklearn.utils.validation import has_fit_parameter
 
 from imblearn.under_sampling.base import BaseUnderSampler
 from imblearn.utils import Substitution
@@ -114,6 +115,11 @@ class ClusterCentroids(BaseUnderSampler):
     Resampled dataset shape Counter({{...}})
     """
 
+    # Centroids are new rows derived from a cluster of original samples, so
+    # the weights cannot be obtained by indexing the input weights.  Each
+    # centroid inherits a weight derived from the cluster it summarises.
+    _weight_propagation = "generated"
+
     _parameter_constraints: dict = {
         **BaseUnderSampler._parameter_constraints,
         "estimator": [HasMethods(["fit", "predict"]), None],
@@ -146,22 +152,45 @@ class ClusterCentroids(BaseUnderSampler):
                     " `n_clusters` and a fitted parameter `cluster_centers_`."
                 )
 
-    def _generate_sample(self, X, y, centroids, target_class):
+    def _generate_sample(self, X, y, centroids, target_class, sample_weight=None):
+        weight_new = None
         if self.voting_ == "hard":
             nearest_neighbors = NearestNeighbors(n_neighbors=1)
             nearest_neighbors.fit(X, y)
-            indices = nearest_neighbors.kneighbors(centroids, return_distance=False)
-            X_new = _safe_indexing(X, np.squeeze(indices))
+            indices = np.squeeze(
+                nearest_neighbors.kneighbors(centroids, return_distance=False)
+            )
+            X_new = _safe_indexing(X, indices)
+            if sample_weight is not None:
+                # The centroid is represented by an actual sample: it inherits
+                # that sample's weight.
+                weight_new = np.asarray(sample_weight, dtype=float)[indices]
         else:
             if sparse.issparse(X):
                 X_new = sparse.csr_matrix(centroids, dtype=X.dtype)
             else:
                 X_new = centroids
+            if sample_weight is not None:
+                # Soft centroids are means of the cluster members: the weight
+                # is the mean weight of the cluster each centroid summarises.
+                labels = self.estimator_.predict(X)
+                sample_weight = np.asarray(sample_weight, dtype=float)
+                weight_new = np.empty(centroids.shape[0], dtype=float)
+                for cluster_idx in range(centroids.shape[0]):
+                    mask = labels == cluster_idx
+                    if not np.any(mask):
+                        weight_new[cluster_idx] = float(np.mean(sample_weight))
+                    else:
+                        weight_new[cluster_idx] = float(
+                            np.mean(sample_weight[mask])
+                        )
         y_new = np.array([target_class] * centroids.shape[0], dtype=y.dtype)
 
-        return X_new, y_new
+        if weight_new is None:
+            return X_new, y_new
+        return X_new, y_new, weight_new
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
 
         if self.voting == "auto":
@@ -169,29 +198,54 @@ class ClusterCentroids(BaseUnderSampler):
         else:
             self.voting_ = self.voting
 
-        X_resampled, y_resampled = [], []
+        X_resampled, y_resampled, weight_resampled = [], [], []
         for target_class in np.unique(y):
             target_class_indices = np.flatnonzero(y == target_class)
             if target_class in self.sampling_strategy_.keys():
                 n_samples = self.sampling_strategy_[target_class]
                 self.estimator_.set_params(**{"n_clusters": n_samples})
-                self.estimator_.fit(_safe_indexing(X, target_class_indices))
+                weight_class = (
+                    None
+                    if sample_weight is None
+                    else np.asarray(sample_weight, dtype=float)[
+                        target_class_indices
+                    ]
+                )
+                X_target_class = _safe_indexing(X, target_class_indices)
+                if weight_class is None:
+                    self.estimator_.fit(X_target_class)
+                elif has_fit_parameter(self.estimator_, "sample_weight"):
+                    # Clusters that support weights are fitted on the weighted
+                    # data, so the centroids reflect the business importance.
+                    self.estimator_.fit(X_target_class, sample_weight=weight_class)
+                else:
+                    self.estimator_.fit(X_target_class)
                 if not hasattr(self.estimator_, "cluster_centers_"):
                     raise RuntimeError(
                         "`estimator` should be a clustering estimator exposing a "
                         "fitted parameter `cluster_centers_`."
                     )
-                X_new, y_new = self._generate_sample(
+                generated = self._generate_sample(
                     _safe_indexing(X, target_class_indices),
                     _safe_indexing(y, target_class_indices),
                     self.estimator_.cluster_centers_,
                     target_class,
+                    sample_weight=weight_class,
                 )
+                X_new, y_new = generated[0], generated[1]
                 X_resampled.append(X_new)
                 y_resampled.append(y_new)
+                if sample_weight is not None:
+                    weight_resampled.append(generated[2])
             else:
                 X_resampled.append(_safe_indexing(X, target_class_indices))
                 y_resampled.append(_safe_indexing(y, target_class_indices))
+                if sample_weight is not None:
+                    weight_resampled.append(
+                        np.asarray(sample_weight, dtype=float)[
+                            target_class_indices
+                        ]
+                    )
 
         if sparse.issparse(X):
             X_resampled = sparse.vstack(X_resampled)
@@ -199,7 +253,10 @@ class ClusterCentroids(BaseUnderSampler):
             X_resampled = np.vstack(X_resampled)
         y_resampled = np.hstack(y_resampled)
 
-        return X_resampled, np.array(y_resampled, dtype=y.dtype)
+        y_resampled = np.array(y_resampled, dtype=y.dtype)
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, np.hstack(weight_resampled)
 
     def _more_tags(self):
         return {"sample_indices": False}

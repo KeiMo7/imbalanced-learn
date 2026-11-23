@@ -19,13 +19,18 @@ from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 from imblearn.over_sampling._smote.base import BaseSMOTE
 from imblearn.over_sampling.base import BaseOverSampler
 from imblearn.utils import Substitution
-from imblearn.utils._docstring import _n_jobs_docstring, _random_state_docstring
+from imblearn.utils._docstring import (
+    _n_jobs_docstring,
+    _random_state_docstring,
+    _weight_strategy_docstring,
+)
 
 
 @Substitution(
     sampling_strategy=BaseOverSampler._sampling_strategy_docstring,
     n_jobs=_n_jobs_docstring,
     random_state=_random_state_docstring,
+    weight_strategy=_weight_strategy_docstring,
 )
 class KMeansSMOTE(BaseSMOTE):
     """Apply a KMeans clustering before to over-sample using SMOTE.
@@ -71,6 +76,8 @@ class KMeansSMOTE(BaseSMOTE):
     density_exponent : "auto" or float, default="auto"
         This exponent is used to determine the density of a cluster. Leaving
         this to "auto" will use a feature-length based exponent.
+
+    {weight_strategy}
 
     Attributes
     ----------
@@ -168,11 +175,13 @@ class KMeansSMOTE(BaseSMOTE):
         kmeans_estimator=None,
         cluster_balance_threshold="auto",
         density_exponent="auto",
+        weight_strategy="inherit",
     ):
         super().__init__(
             sampling_strategy=sampling_strategy,
             random_state=random_state,
             k_neighbors=k_neighbors,
+            weight_strategy=weight_strategy,
         )
         self.kmeans_estimator = kmeans_estimator
         self.cluster_balance_threshold = cluster_balance_threshold
@@ -215,10 +224,15 @@ class KMeansSMOTE(BaseSMOTE):
         )
         return (mean_distance**exponent) / X.shape[0]
 
-    def _fit_resample(self, X, y):
+    def _fit_resample(self, X, y, sample_weight=None):
         self._validate_estimator()
         X_resampled = X.copy()
         y_resampled = y.copy()
+        weight_resampled = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).copy()
+        )
         total_inp_samples = sum(self.sampling_strategy_.values())
 
         for class_sample, n_samples in self.sampling_strategy_.items():
@@ -291,18 +305,37 @@ class KMeansSMOTE(BaseSMOTE):
                     math.ceil(n_samples * cluster_weights[valid_cluster_idx])
                 )
 
-                X_new, y_new = self._make_samples(
-                    X_cluster_class,
-                    y.dtype,
-                    class_sample,
-                    X_cluster_class,
-                    nns,
-                    cluster_n_samples,
-                    1.0,
-                )
+                if sample_weight is None:
+                    X_new, y_new = self._make_samples(
+                        X_cluster_class,
+                        y.dtype,
+                        class_sample,
+                        X_cluster_class,
+                        nns,
+                        cluster_n_samples,
+                        1.0,
+                    )
+                else:
+                    cluster_class_indices = np.flatnonzero(y_cluster == class_sample)
+                    weight_class = np.asarray(sample_weight, dtype=float)[
+                        valid_cluster[cluster_class_indices]
+                    ]
+                    X_new, y_new, weight_new = self._make_samples(
+                        X_cluster_class,
+                        y.dtype,
+                        class_sample,
+                        X_cluster_class,
+                        nns,
+                        cluster_n_samples,
+                        1.0,
+                        base_weight=weight_class,
+                    )
+                    weight_resampled = np.hstack((weight_resampled, weight_new))
 
                 stack = [np.vstack, sparse.vstack][int(sparse.issparse(X_new))]
                 X_resampled = stack((X_resampled, X_new))
                 y_resampled = np.hstack((y_resampled, y_new))
 
-        return X_resampled, y_resampled
+        if sample_weight is None:
+            return X_resampled, y_resampled
+        return X_resampled, y_resampled, weight_resampled

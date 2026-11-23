@@ -21,6 +21,12 @@ class BaseUnderSampler(BaseSampler):
 
     _sampling_type = "under-sampling"
 
+    # Under-samplers only keep a subset of the input rows: the resampled
+    # weights are the subset of the input weights aligned with
+    # ``sample_indices_``.
+    _sample_weight_supported = True
+    _weight_propagation = "indices"
+
     _sampling_strategy_docstring = (
         """sampling_strategy : float, str, dict, callable, default='auto'
         Sampling information to sample the data set.
@@ -79,6 +85,11 @@ class BaseCleaningSampler(BaseSampler):
     """
 
     _sampling_type = "clean-sampling"
+
+    # Cleaning samplers only remove rows: the resampled weights are a subset
+    # of the input weights aligned with ``sample_indices_``.
+    _sample_weight_supported = True
+    _weight_propagation = "indices"
 
     _sampling_strategy_docstring = """sampling_strategy : str, list or callable
         Sampling information to sample the data set.

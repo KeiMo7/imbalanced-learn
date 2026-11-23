@@ -13,6 +13,7 @@ composite estimator, as a chain of transforms, samples and estimators.
 #         Christos Aridas
 #         Guillaume Lemaitre <g.lemaitre58@gmail.com>
 # License: BSD
+import inspect
 import warnings
 from contextlib import contextmanager
 from copy import deepcopy
@@ -391,14 +392,36 @@ class Pipeline(pipeline.Pipeline):
     # Estimator interface
 
     # def _fit(self, X, y=None, **fit_params_steps):
-    def _fit(self, X, y=None, routed_params=None, raw_params=None):
+    def _fit(
+        self, X, y=None, routed_params=None, raw_params=None, sample_weight=None
+    ):
         self.steps = list(self.steps)
         self._validate_steps()
+        # Drop any resampled weights from a previous fit so that a failure
+        # mid-chain never leaves a stale, misaligned array behind.
+        if hasattr(self, "_resampled_sample_weight_"):
+            del self._resampled_sample_weight_
         # Setup the memory
         memory = check_memory(self.memory)
 
         fit_transform_one_cached = memory.cache(_fit_transform_one)
         fit_resample_one_cached = memory.cache(_fit_resample_one)
+
+        # ``sample_weight`` is threaded through the sampling steps.  It is
+        # active as soon as any sampler step is asked to propagate weights, so
+        # that an explicit ``step__sample_weight`` on a later step also flows
+        # through the earlier ones and keeps every row aligned.
+        if sample_weight is None and routed_params is not None:
+            for name, transformer in self.steps:
+                if transformer is None or transformer == "passthrough":
+                    continue
+                if not hasattr(transformer, "fit_resample"):
+                    continue
+                step_params = routed_params.get(name, {})
+                if "sample_weight" in step_params.get("fit_resample", {}):
+                    sample_weight = step_params["fit_resample"]["sample_weight"]
+                    break
+        weight_is_active = sample_weight is not None
 
         for step_idx, name, transformer in self._iter(
             with_final=False, filter_passthrough=False, filter_resample=False
@@ -433,18 +456,54 @@ class Pipeline(pipeline.Pipeline):
                     params=step_params,
                 )
             elif hasattr(cloned_transformer, "fit_resample"):
-                X, y, fitted_transformer = fit_resample_one_cached(
-                    cloned_transformer,
-                    X,
-                    y,
-                    message_clsname="Pipeline",
-                    message=self._log_message(step_idx),
-                    params=routed_params[name],
+                resample_params = routed_params[name]
+                step_sample_weight = resample_params.get("fit_resample", {}).get(
+                    "sample_weight", None
                 )
+                if step_sample_weight is None and weight_is_active:
+                    step_sample_weight = sample_weight
+                    resample_params = _with_sample_weight(
+                        resample_params, sample_weight
+                    )
+                step_supports_weight = _sampler_accepts_sample_weight(
+                    cloned_transformer
+                )
+                if step_sample_weight is not None and not step_supports_weight:
+                    raise ValueError(
+                        f"Pipeline step {name!r} ({type(cloned_transformer).__name__}) "
+                        "does not support 'sample_weight'; it cannot propagate the "
+                        "weights through the sampling chain. Remove the weights or "
+                        "use a sampler implementing the sample-weight contract."
+                    )
+                if step_sample_weight is None:
+                    X, y, fitted_transformer = fit_resample_one_cached(
+                        cloned_transformer,
+                        X,
+                        y,
+                        message_clsname="Pipeline",
+                        message=self._log_message(step_idx),
+                        params=resample_params,
+                    )
+                else:
+                    X, y, sample_weight, fitted_transformer = (
+                        fit_resample_one_cached(
+                            cloned_transformer,
+                            X,
+                            y,
+                            weight=step_sample_weight,
+                            message_clsname="Pipeline",
+                            message=self._log_message(step_idx),
+                            params=resample_params,
+                        )
+                    )
+                    weight_is_active = True
             # Replace the transformer of the step with the fitted
             # transformer. This is necessary when loading the transformer
             # from the cache.
             self.steps[step_idx] = (name, fitted_transformer)
+
+        if weight_is_active:
+            self._resampled_sample_weight_ = sample_weight
         return X, y
 
     # The `fit_*` methods need to be overridden to support the samplers.
@@ -519,6 +578,7 @@ class Pipeline(pipeline.Pipeline):
                     step_params=routed_params[self.steps[-1][0]],
                     all_params=params,
                 )
+                last_step_params = self._align_final_sample_weight(last_step_params)
                 self._final_estimator.fit(Xt, yt, **last_step_params["fit"])
         return self
 
@@ -589,6 +649,7 @@ class Pipeline(pipeline.Pipeline):
                 step_params=routed_params[self.steps[-1][0]],
                 all_params=params,
             )
+            last_step_params = self._align_final_sample_weight(last_step_params)
             if hasattr(last_step, "fit_transform"):
                 return last_step.fit_transform(
                     Xt, yt, **last_step_params["fit_transform"]
@@ -724,8 +785,22 @@ class Pipeline(pipeline.Pipeline):
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             if last_step == "passthrough":
                 return Xt
-            last_step_params = routed_params[self.steps[-1][0]]
+            last_step_params = self._align_final_sample_weight(
+                routed_params[self.steps[-1][0]]
+            )
             if hasattr(last_step, "fit_resample"):
+                if (
+                    "sample_weight"
+                    in last_step_params.get("fit_resample", {})
+                    and not _sampler_accepts_sample_weight(last_step)
+                ):
+                    raise ValueError(
+                        f"Pipeline step {self.steps[-1][0]!r} "
+                        f"({type(last_step).__name__}) does not support "
+                        "'sample_weight'; it cannot propagate the weights through "
+                        "the sampling chain. Remove the weights or use a sampler "
+                        "implementing the sample-weight contract."
+                    )
                 return last_step.fit_resample(
                     Xt, yt, **last_step_params["fit_resample"]
                 )
@@ -787,7 +862,9 @@ class Pipeline(pipeline.Pipeline):
         routed_params = self._check_method_params(method="fit_predict", props=params)
         Xt, yt = self._fit(X, y, routed_params)
 
-        params_last_step = routed_params[self.steps[-1][0]]
+        params_last_step = self._align_final_sample_weight(
+            routed_params[self.steps[-1][0]]
+        )
         with _print_elapsed_time("Pipeline", self._log_message(len(self.steps) - 1)):
             y_pred = self.steps[-1][-1].fit_predict(
                 Xt, yt, **params_last_step.get("fit_predict", {})
@@ -1263,7 +1340,65 @@ class Pipeline(pipeline.Pipeline):
                 # get all the same params and pass it to the last fit.
                 fit_params_steps[step]["fit_transform"][param] = pval
                 fit_params_steps[step]["fit_predict"][param] = pval
+                if param == "sample_weight":
+                    # ``fit_resample`` is the sampling counterpart of ``fit``:
+                    # route the weights there too so the sampler can propagate
+                    # them instead of silently dropping them.
+                    fit_params_steps[step]["fit_resample"][param] = pval
             return fit_params_steps
+
+    def _align_final_sample_weight(self, step_params):
+        """Replace the final estimator weights by the resampled ones.
+
+        When a sampler propagated ``sample_weight``, the final estimator must
+        see one weight per resampled row.  The raw weights the user provided
+        are therefore replaced by the resampled array, keeping ``X``, ``y`` and
+        ``sample_weight`` aligned row-wise.
+
+        When metadata routing is disabled and the user did not explicitly pass
+        weights to the final estimator, the resampled weights are forwarded
+        automatically if the estimator accepts ``sample_weight``: otherwise the
+        weights would be silently dropped at the end of the chain.
+        """
+        resampled = getattr(self, "_resampled_sample_weight_", None)
+        if resampled is None or not step_params:
+            return step_params
+
+        has_explicit_weight = any(
+            "sample_weight" in method_params
+            for method_params in step_params.values()
+        )
+        if has_explicit_weight:
+            for method_params in step_params.values():
+                if "sample_weight" in method_params:
+                    method_params["sample_weight"] = resampled
+            return step_params
+
+        if _routing_enabled():
+            # Metadata routing is explicit: never add a parameter the final
+            # estimator did not request.
+            return step_params
+
+        from sklearn.utils.validation import has_fit_parameter
+
+        final_estimator = self._final_estimator
+        if final_estimator is None or final_estimator == "passthrough":
+            return step_params
+        # A sampler as final estimator receives the weights through
+        # ``fit_resample``; a transformer/estimator through its ``fit``.
+        is_sampler = hasattr(final_estimator, "fit_resample") and not hasattr(
+            final_estimator, "predict"
+        )
+        if is_sampler:
+            if "fit_resample" in step_params:
+                step_params["fit_resample"]["sample_weight"] = resampled
+            return step_params
+        if not has_fit_parameter(final_estimator, "sample_weight"):
+            return step_params
+        for method in ("fit", "fit_transform", "fit_predict"):
+            if method in step_params:
+                step_params[method]["sample_weight"] = resampled
+        return step_params
 
     def __sklearn_is_fitted__(self):
         """Indicate whether pipeline has been fit.
@@ -1327,11 +1462,58 @@ class Pipeline(pipeline.Pipeline):
         return tags
 
 
-def _fit_resample_one(sampler, X, y, message_clsname="", message=None, params=None):
-    with _print_elapsed_time(message_clsname, message):
-        X_res, y_res = sampler.fit_resample(X, y, **params.get("fit_resample", {}))
+def _fit_resample_one(
+    sampler, X, y, weight=None, message_clsname="", message=None, params=None
+):
+    """Fit a sampler and propagate ``sample_weight`` when it is provided.
 
-        return X_res, y_res, sampler
+    Without weights the historical 3-tuple ``(X, y, sampler)`` is returned so
+    that the unweighted path is unchanged.  With weights the resampled weights
+    are inserted before the fitted sampler.
+    """
+    fit_resample_params = dict(params.get("fit_resample", {}))
+    fit_resample_params.pop("sample_weight", None)
+    with _print_elapsed_time(message_clsname, message):
+        if weight is None:
+            X_res, y_res = sampler.fit_resample(X, y, **fit_resample_params)
+            return X_res, y_res, sampler
+
+        X_res, y_res, sample_weight_res = sampler.fit_resample(
+            X, y, sample_weight=weight, **fit_resample_params
+        )
+        return X_res, y_res, sample_weight_res, sampler
+
+
+def _sampler_accepts_sample_weight(sampler):
+    """Whether ``sampler`` can propagate sample weights through ``fit_resample``.
+
+    Third-party samplers predating this feature do not advertise the contract;
+    adding a weight to them must fail loudly rather than silently drop it.
+    """
+    declared = getattr(sampler, "_sample_weight_supported", None)
+    if declared is not None:
+        # Samplers deriving from ``BaseSampler`` always declare the contract
+        # (``False`` by default), so this decision is authoritative.
+        return bool(declared)
+    try:
+        parameters = inspect.signature(sampler.fit_resample).parameters
+    except (TypeError, ValueError):
+        return False
+    if "sample_weight" in parameters:
+        return True
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+
+
+def _with_sample_weight(params, sample_weight):
+    """Return ``params`` with ``sample_weight`` set for ``fit_resample``."""
+    params = Bunch(**dict(params))
+    fit_resample_params = Bunch(**dict(params.get("fit_resample", {})))
+    fit_resample_params["sample_weight"] = sample_weight
+    params["fit_resample"] = fit_resample_params
+    return params
 
 
 def _transform_one(transformer, X, y, weight, params=None):
