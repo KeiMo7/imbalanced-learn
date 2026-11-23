@@ -32,3 +32,12 @@ SMOTE algorithms
    BorderlineSMOTE
    KMeansSMOTE
    SVMSMOTE
+
+Multi-label over-sampling
+-------------------------
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   MultiLabelSMOTE

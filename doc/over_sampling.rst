@@ -333,3 +333,42 @@ resampled independently. In the contrary, both :class:`ADASYN` and
 for sample generation. They are using a one-vs-rest approach by selecting each
 targeted class and computing the necessary statistics against the rest of the
 data set which are grouped in a single class.
+
+.. _multilabel_smote:
+
+Multi-label over-sampling with label-set combinations
+------------------------------------------------------
+
+The single-label samplers above understand one class per sample. When a single
+sample carries several labels at once -- a multi-label *indicator* target of
+shape ``(n_samples, n_labels)`` -- they cannot express which *combination* of
+labels is rare. :class:`MultiLabelSMOTE` treats the full set of active labels
+of each sample as its resampling unit: two samples belong to the same group
+only if they carry exactly the same label combination.
+
+  >>> import numpy as np
+  >>> from scipy import sparse
+  >>> from imblearn.over_sampling import MultiLabelSMOTE
+  >>> X = np.arange(56, dtype=float).reshape(14, 4)
+  >>> y = np.array([
+  ...     [1, 0, 0]] * 6 + [[0, 1, 0]] * 5 + [[1, 0, 1]] * 3
+  ... )
+  >>> sampler = MultiLabelSMOTE(random_state=42)
+  >>> X_res, y_res = sampler.fit_resample(X, sparse.csr_matrix(y))
+  >>> sampler.n_synthetic_[(0, 2)]
+  3
+
+SMOTE interpolation is performed independently inside every label-set group,
+so every synthetic sample inherits a combination that genuinely exists in the
+training data -- an unseen combination, an all-zero label set or an
+out-of-range label can never be synthesised. Sparse indicator targets stay
+sparse: label sets are read directly from the CSR ``indices``/``indptr``
+arrays, so memory grows linearly with the number of stored ones rather than
+with the square of the number of labels.
+
+Use ``label_budget`` and ``total_budget`` to cap how many synthetic samples may
+carry each label (or in total), ``singleton_strategy`` to choose between
+keeping, merging or skipping a combination seen only once, and
+``zero_label_rows`` to decide what happens to unlabelled rows. Set
+``output_sparse=False`` when chaining with a classifier that requires a dense
+multi-label target.

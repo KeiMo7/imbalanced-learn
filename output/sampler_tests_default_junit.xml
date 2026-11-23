@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="1" tests="274" time="3.923" timestamp="2026-11-23T15:34:51.921132+08:00" hostname="DESKTOP-M357CMO"><testcase classname="imblearn.over_sampling._adasyn" name="imblearn.over_sampling._adasyn.ADASYN" time="0.014" /><testcase classname="imblearn.over_sampling._multilabel_smote" name="imblearn.over_sampling._multilabel_smote.MultiLabelSMOTE" time="0.003" /><testcase classname="imblearn.over_sampling._random_over_sampler" name="imblearn.over_sampling._random_over_sampler.RandomOverSampler" time="0.002" /><testcase classname="imblearn.over_sampling._smote.base" name="imblearn.over_sampling._smote.base.SMOTE" time="0.003" /><testcase classname="imblearn.over_sampling._smote.base" name="imblearn.over_sampling._smote.base.SMOTEN" time="0.003"><failure message="914 --------&#10;915 &gt;&gt;&gt; import numpy as np&#10;916 &gt;&gt;&gt; X = np.array([&quot;A&quot;] * 10 + [&quot;B&quot;] * 20 + [&quot;C&quot;] * 30, dtype=object).reshape(-1, 1)&#10;917 &gt;&gt;&gt; y = np.array([0] * 20 + [1] * 40, dtype=np.int32)&#10;918 &gt;&gt;&gt; from collections import Counter&#10;919 &gt;&gt;&gt; print(f&quot;Original class counts: {Counter(y)}&quot;)&#10;920 Original class counts: Counter({1: 40, 0: 20})&#10;921 &gt;&gt;&gt; from imblearn.over_sampling import SMOTEN&#10;922 &gt;&gt;&gt; sampler = SMOTEN(random_state=0)&#10;923 &gt;&gt;&gt; X_res, y_res = sampler.fit_resample(X, y)&#10;UNEXPECTED EXCEPTION: DeprecationWarning('`distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.')&#10;Traceback (most recent call last):&#10;  File &quot;&lt;doctest imblearn.over_sampling._smote.base.SMOTEN[7]&gt;&quot;, line 1, in &lt;module&gt;&#10;  File &quot;/home/wll/uid45/imblearn/base.py&quot;, line 204, in fit_resample&#10;    return super().fit_resample(X, y, **params)&#10;           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^&#10;  File &quot;/home/wll/uid191/sklearn/base.py&quot;, line 1403, in wrapper&#10;    return fit_method(estimator, *args, **kwargs)&#10;  File &quot;/home/wll/uid45/imblearn/base.py&quot;, line 107, in fit_resample&#10;    output = self._fit_resample(X, y, **params)&#10;  File &quot;/home/wll/uid45/imblearn/over_sampling/_smote/base.py&quot;, line 978, in _fit_resample&#10;    X_class_dist = vdm.pairwise(X_class)&#10;  File &quot;/home/wll/uid45/imblearn/metrics/pairwise.py&quot;, line 230, in pairwise&#10;    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r&#10;    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;/home/wll/.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py&quot;, line 1000, in distance_matrix&#10;    warnings.warn(msg, DeprecationWarning,&#10;    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^&#10;                  skip_file_prefixes=(os.path.dirname(__file__),))&#10;                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.&#10;/home/wll/uid45/imblearn/over_sampling/_smote/base.py:923: UnexpectedException">914 --------
+915 &gt;&gt;&gt; import numpy as np
+916 &gt;&gt;&gt; X = np.array(["A"] * 10 + ["B"] * 20 + ["C"] * 30, dtype=object).reshape(-1, 1)
+917 &gt;&gt;&gt; y = np.array([0] * 20 + [1] * 40, dtype=np.int32)
+918 &gt;&gt;&gt; from collections import Counter
+919 &gt;&gt;&gt; print(f"Original class counts: {Counter(y)}")
+920 Original class counts: Counter({1: 40, 0: 20})
+921 &gt;&gt;&gt; from imblearn.over_sampling import SMOTEN
+922 &gt;&gt;&gt; sampler = SMOTEN(random_state=0)
+923 &gt;&gt;&gt; X_res, y_res = sampler.fit_resample(X, y)
+UNEXPECTED EXCEPTION: DeprecationWarning('`distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.')
+Traceback (most recent call last):
+  File "&lt;doctest imblearn.over_sampling._smote.base.SMOTEN[7]&gt;", line 1, in &lt;module&gt;
+  File "/home/wll/uid45/imblearn/base.py", line 204, in fit_resample
+    return super().fit_resample(X, y, **params)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/wll/uid191/sklearn/base.py", line 1403, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+  File "/home/wll/uid45/imblearn/base.py", line 107, in fit_resample
+    output = self._fit_resample(X, y, **params)
+  File "/home/wll/uid45/imblearn/over_sampling/_smote/base.py", line 978, in _fit_resample
+    X_class_dist = vdm.pairwise(X_class)
+  File "/home/wll/uid45/imblearn/metrics/pairwise.py", line 230, in pairwise
+    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wll/.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py", line 1000, in distance_matrix
+    warnings.warn(msg, DeprecationWarning,
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+                  skip_file_prefixes=(os.path.dirname(__file__),))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+/home/wll/uid45/imblearn/over_sampling/_smote/base.py:923: UnexpectedException</failure></testcase><testcase classname="imblearn.over_sampling._smote.base" name="imblearn.over_sampling._smote.base.SMOTENC" time="0.018" /><testcase classname="imblearn.over_sampling._smote.cluster" name="imblearn.over_sampling._smote.cluster.KMeansSMOTE" time="0.008" /><testcase classname="imblearn.over_sampling._smote.filter" name="imblearn.over_sampling._smote.filter.BorderlineSMOTE" time="0.003" /><testcase classname="imblearn.over_sampling._smote.filter" name="imblearn.over_sampling._smote.filter.SVMSMOTE" time="0.005" /><testcase classname="imblearn.over_sampling._smote.tests.test_borderline_smote" name="test_borderline_smote_no_in_danger_samples[borderline-1]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_borderline_smote" name="test_borderline_smote_no_in_danger_samples[borderline-2]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_borderline_smote" name="test_borderline_smote_kind" time="0.011" /><testcase classname="imblearn.over_sampling._smote.tests.test_borderline_smote" name="test_borderline_smote_in_danger" time="0.006" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_kmeans_smote" time="0.003" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[3-2]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[3-k_neighbors1]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[kmeans_estimator1-2]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[kmeans_estimator1-k_neighbors1]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[kmeans_estimator2-2]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_custom[kmeans_estimator2-k_neighbors1]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_not_enough_clusters" time="0.003" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_density_estimation[auto-auto]" time="0.056" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_density_estimation[auto-10]" time="0.029" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_density_estimation[0.1-auto]" time="0.034" /><testcase classname="imblearn.over_sampling._smote.tests.test_kmeans_smote" name="test_sample_kmeans_density_estimation[0.1-10]" time="0.031" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote" name="test_sample_regular" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote" name="test_sample_regular_half" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote" name="test_sample_regular_with_nn" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_error" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc[data0]" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc[data1]" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc[data2]" time="0.006" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc[data3]" time="0.005" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc[data4]" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_check_target_type" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_samplers_one_label" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_fit" time="0.005" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_fit_resample" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_fit_resample_sampling_strategy" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_pandas" time="0.023" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_preserve_dtype" time="0.005" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_raising_error_all_categorical[categorical_features0]" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_raising_error_all_categorical[categorical_features1]" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smote_nc_with_null_median_std" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_categorical_encoder" time="0.007" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_categorical_encoder_dropped_columns[first]" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_categorical_encoder_dropped_columns[if_binary]" time="0.001" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_bool_categorical" time="0.022" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_categorical_features_str" time="0.008" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smotenc_categorical_features_auto" time="0.009" /><testcase classname="imblearn.over_sampling._smote.tests.test_smote_nc" name="test_smote_nc_categorical_features_auto_error" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_smoten" name="test_smoten" time="0.002"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">data = (array([['B', 'A', 'B'],
+       ['C', 'A', 'B'],
+       ['C', 'B', 'D'],
+       ['B', 'A', 'B'],
+       ['B', 'A', 'A'...pple', 'apple', 'apple', 'apple', 'apple', 'apple',
+       'apple', 'apple', 'apple', 'apple', 'apple'], dtype=object))
+
+    def test_smoten(data):
+        # overall check for SMOTEN
+        X, y = data
+        sampler = SMOTEN(random_state=0)
+&gt;       X_res, y_res = sampler.fit_resample(X, y)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+imblearn/over_sampling/_smote/tests/test_smoten.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+imblearn/base.py:204: in fit_resample
+    return super().fit_resample(X, y, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../uid191/sklearn/base.py:1403: in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/base.py:107: in fit_resample
+    output = self._fit_resample(X, y, **params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/over_sampling/_smote/base.py:978: in _fit_resample
+    X_class_dist = vdm.pairwise(X_class)
+                   ^^^^^^^^^^^^^^^^^^^^^
+imblearn/metrics/pairwise.py:230: in pairwise
+    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+y = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+p = 1, threshold = 1000000
+
+    @xp_capabilities(out_of_scope=True)
+    def distance_matrix(x, y, p=2.0, threshold=1000000):
+        """Compute the distance matrix.
+    
+        Returns the matrix of all pair-wise distances.
+    
+        .. deprecated:: 1.18.0
+            This function is deprecated in favor of `scipy.spatial.distance.cdist`
+            and will be removed in SciPy 1.20.0.
+    
+        Parameters
+        ----------
+        x : (M, K) array_like
+            Matrix of M vectors in K dimensions.
+        y : (N, K) array_like
+            Matrix of N vectors in K dimensions.
+        p : float, 1 &lt;= p &lt;= infinity
+            Which Minkowski p-norm to use.
+        threshold : positive int
+            If ``M * N * K`` &gt; `threshold`, algorithm uses a Python loop instead
+            of large temporary arrays.
+    
+        Returns
+        -------
+        result : (M, N) ndarray
+            Matrix containing the distance from every vector in `x` to every vector
+            in `y`.
+    
+        Examples
+        --------
+        &gt;&gt;&gt; from scipy.spatial import distance_matrix
+        &gt;&gt;&gt; distance_matrix([[0,0],[0,1]], [[1,0],[1,1]])
+        array([[ 1.        ,  1.41421356],
+               [ 1.41421356,  1.        ]])
+    
+        """
+        msg = ("`distance_matrix` is deprecated in favor of "
+               "`scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed "
+               "in SciPy 1.20.0.")
+&gt;       warnings.warn(msg, DeprecationWarning,
+                      skip_file_prefixes=(os.path.dirname(__file__),))
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+../.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py:1000: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling._smote.tests.test_smoten" name="test_smoten_resampling" time="0.002"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">def test_smoten_resampling():
+        # check if the SMOTEN resample data as expected
+        # we generate data such that "not apple" will be the minority class and
+        # samples from this class will be generated. We will force the "blue"
+        # category to be associated with this class. Therefore, the new generated
+        # samples should as well be from the "blue" category.
+        X = np.array(["green"] * 5 + ["red"] * 10 + ["blue"] * 7, dtype=object).reshape(
+            -1, 1
+        )
+        y = np.array(
+            ["apple"] * 5
+            + ["not apple"] * 3
+            + ["apple"] * 7
+            + ["not apple"] * 5
+            + ["apple"] * 2,
+            dtype=object,
+        )
+        sampler = SMOTEN(random_state=0)
+&gt;       X_res, y_res = sampler.fit_resample(X, y)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+imblearn/over_sampling/_smote/tests/test_smoten.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+imblearn/base.py:204: in fit_resample
+    return super().fit_resample(X, y, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../uid191/sklearn/base.py:1403: in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/base.py:107: in fit_resample
+    output = self._fit_resample(X, y, **params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/over_sampling/_smote/base.py:978: in _fit_resample
+    X_class_dist = vdm.pairwise(X_class)
+                   ^^^^^^^^^^^^^^^^^^^^^
+imblearn/metrics/pairwise.py:230: in pairwise
+    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = array([[0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.28571429,...71429, 0.71428571],
+       [0.28571429, 0.71428571],
+       [0.28571429, 0.71428571],
+       [0.28571429, 0.71428571]])
+y = array([[0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.28571429,...71429, 0.71428571],
+       [0.28571429, 0.71428571],
+       [0.28571429, 0.71428571],
+       [0.28571429, 0.71428571]])
+p = 1, threshold = 1000000
+
+    @xp_capabilities(out_of_scope=True)
+    def distance_matrix(x, y, p=2.0, threshold=1000000):
+        """Compute the distance matrix.
+    
+        Returns the matrix of all pair-wise distances.
+    
+        .. deprecated:: 1.18.0
+            This function is deprecated in favor of `scipy.spatial.distance.cdist`
+            and will be removed in SciPy 1.20.0.
+    
+        Parameters
+        ----------
+        x : (M, K) array_like
+            Matrix of M vectors in K dimensions.
+        y : (N, K) array_like
+            Matrix of N vectors in K dimensions.
+        p : float, 1 &lt;= p &lt;= infinity
+            Which Minkowski p-norm to use.
+        threshold : positive int
+            If ``M * N * K`` &gt; `threshold`, algorithm uses a Python loop instead
+            of large temporary arrays.
+    
+        Returns
+        -------
+        result : (M, N) ndarray
+            Matrix containing the distance from every vector in `x` to every vector
+            in `y`.
+    
+        Examples
+        --------
+        &gt;&gt;&gt; from scipy.spatial import distance_matrix
+        &gt;&gt;&gt; distance_matrix([[0,0],[0,1]], [[1,0],[1,1]])
+        array([[ 1.        ,  1.41421356],
+               [ 1.41421356,  1.        ]])
+    
+        """
+        msg = ("`distance_matrix` is deprecated in favor of "
+               "`scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed "
+               "in SciPy 1.20.0.")
+&gt;       warnings.warn(msg, DeprecationWarning,
+                      skip_file_prefixes=(os.path.dirname(__file__),))
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+../.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py:1000: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling._smote.tests.test_smoten" name="test_smoten_sparse_input[sparse_csr]" time="0.004"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">data = (array([['B', 'A', 'B'],
+       ['C', 'A', 'B'],
+       ['C', 'B', 'D'],
+       ['B', 'A', 'B'],
+       ['B', 'A', 'A'...pple', 'apple', 'apple', 'apple', 'apple', 'apple',
+       'apple', 'apple', 'apple', 'apple', 'apple'], dtype=object))
+sparse_format = 'sparse_csr'
+
+    @pytest.mark.parametrize("sparse_format", ["sparse_csr", "sparse_csc"])
+    def test_smoten_sparse_input(data, sparse_format):
+        """Check that we handle sparse input in SMOTEN even if it is not efficient.
+    
+        Non-regression test for:
+        https://github.com/scikit-learn-contrib/imbalanced-learn/issues/971
+        """
+        X, y = data
+        X = OneHotEncoder().fit_transform(X).toarray()
+        X = _convert_container(X, sparse_format)
+    
+&gt;       with pytest.warns(DataConversionWarning, match="is not really efficient"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+imblearn/over_sampling/_smote/tests/test_smoten.py:72: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling._smote.tests.test_smoten" name="test_smoten_sparse_input[sparse_csc]" time="0.004"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">data = (array([['B', 'A', 'B'],
+       ['C', 'A', 'B'],
+       ['C', 'B', 'D'],
+       ['B', 'A', 'B'],
+       ['B', 'A', 'A'...pple', 'apple', 'apple', 'apple', 'apple', 'apple',
+       'apple', 'apple', 'apple', 'apple', 'apple'], dtype=object))
+sparse_format = 'sparse_csc'
+
+    @pytest.mark.parametrize("sparse_format", ["sparse_csr", "sparse_csc"])
+    def test_smoten_sparse_input(data, sparse_format):
+        """Check that we handle sparse input in SMOTEN even if it is not efficient.
+    
+        Non-regression test for:
+        https://github.com/scikit-learn-contrib/imbalanced-learn/issues/971
+        """
+        X, y = data
+        X = OneHotEncoder().fit_transform(X).toarray()
+        X = _convert_container(X, sparse_format)
+    
+&gt;       with pytest.warns(DataConversionWarning, match="is not really efficient"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+imblearn/over_sampling/_smote/tests/test_smoten.py:72: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling._smote.tests.test_smoten" name="test_smoten_categorical_encoder" time="0.001"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">data = (array([['B', 'A', 'B'],
+       ['C', 'A', 'B'],
+       ['C', 'B', 'D'],
+       ['B', 'A', 'B'],
+       ['B', 'A', 'A'...pple', 'apple', 'apple', 'apple', 'apple', 'apple',
+       'apple', 'apple', 'apple', 'apple', 'apple'], dtype=object))
+
+    def test_smoten_categorical_encoder(data):
+        """Check that `categorical_encoder` is used when provided."""
+    
+        X, y = data
+        sampler = SMOTEN(random_state=0)
+&gt;       sampler.fit_resample(X, y)
+
+imblearn/over_sampling/_smote/tests/test_smoten.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+imblearn/base.py:204: in fit_resample
+    return super().fit_resample(X, y, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../uid191/sklearn/base.py:1403: in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/base.py:107: in fit_resample
+    output = self._fit_resample(X, y, **params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/over_sampling/_smote/base.py:978: in _fit_resample
+    X_class_dist = vdm.pairwise(X_class)
+                   ^^^^^^^^^^^^^^^^^^^^^
+imblearn/metrics/pairwise.py:230: in pairwise
+    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+y = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+p = 1, threshold = 1000000
+
+    @xp_capabilities(out_of_scope=True)
+    def distance_matrix(x, y, p=2.0, threshold=1000000):
+        """Compute the distance matrix.
+    
+        Returns the matrix of all pair-wise distances.
+    
+        .. deprecated:: 1.18.0
+            This function is deprecated in favor of `scipy.spatial.distance.cdist`
+            and will be removed in SciPy 1.20.0.
+    
+        Parameters
+        ----------
+        x : (M, K) array_like
+            Matrix of M vectors in K dimensions.
+        y : (N, K) array_like
+            Matrix of N vectors in K dimensions.
+        p : float, 1 &lt;= p &lt;= infinity
+            Which Minkowski p-norm to use.
+        threshold : positive int
+            If ``M * N * K`` &gt; `threshold`, algorithm uses a Python loop instead
+            of large temporary arrays.
+    
+        Returns
+        -------
+        result : (M, N) ndarray
+            Matrix containing the distance from every vector in `x` to every vector
+            in `y`.
+    
+        Examples
+        --------
+        &gt;&gt;&gt; from scipy.spatial import distance_matrix
+        &gt;&gt;&gt; distance_matrix([[0,0],[0,1]], [[1,0],[1,1]])
+        array([[ 1.        ,  1.41421356],
+               [ 1.41421356,  1.        ]])
+    
+        """
+        msg = ("`distance_matrix` is deprecated in favor of "
+               "`scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed "
+               "in SciPy 1.20.0.")
+&gt;       warnings.warn(msg, DeprecationWarning,
+                      skip_file_prefixes=(os.path.dirname(__file__),))
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+../.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py:1000: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling._smote.tests.test_svm_smote" name="test_svm_smote" time="0.004" /><testcase classname="imblearn.over_sampling._smote.tests.test_svm_smote" name="test_svm_smote_not_svm" time="0.002" /><testcase classname="imblearn.over_sampling._smote.tests.test_svm_smote" name="test_svm_smote_all_noise" time="0.009" /><testcase classname="imblearn.over_sampling.tests.test_adasyn" name="test_ada_init" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_adasyn" name="test_ada_fit_resample" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_adasyn" name="test_ada_fit_resample_nn_obj" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_smote_m_neighbors[borderline]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_smote_m_neighbors[svm]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_custom_nn[adasyn]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_custom_nn[borderline]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_custom_nn[kmeans]" time="0.003" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_custom_nn[smote]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_custom_nn[svm]" time="0.003" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_categorical_smote_k_custom_nn" time="0.002"><failure message="DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.">categorical_data = (array([['B', 'A', 'B'],
+       ['C', 'A', 'B'],
+       ['C', 'B', 'D'],
+       ['B', 'A', 'B'],
+       ['B', 'A', 'A'...pple', 'apple', 'apple', 'apple', 'apple', 'apple',
+       'apple', 'apple', 'apple', 'apple', 'apple'], dtype=object))
+
+    def test_categorical_smote_k_custom_nn(categorical_data):
+        X, y = categorical_data
+        smote = SMOTEN(k_neighbors=_CustomNearestNeighbors(n_neighbors=5))
+&gt;       X_res, y_res = smote.fit_resample(X, y)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+imblearn/over_sampling/tests/test_common.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+imblearn/base.py:204: in fit_resample
+    return super().fit_resample(X, y, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../uid191/sklearn/base.py:1403: in wrapper
+    return fit_method(estimator, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/base.py:107: in fit_resample
+    output = self._fit_resample(X, y, **params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+imblearn/over_sampling/_smote/base.py:978: in _fit_resample
+    X_class_dist = vdm.pairwise(X_class)
+                   ^^^^^^^^^^^^^^^^^^^^^
+imblearn/metrics/pairwise.py:230: in pairwise
+    distance_matrix(proba_feature_X, proba_feature_Y, p=self.k) ** self.r
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+y = array([[0.7       , 0.3       ],
+       [0.63333333, 0.36666667],
+       [0.63333333, 0.36666667],
+       [0.7       ,...33333, 0.36666667],
+       [0.7       , 0.3       ],
+       [0.7       , 0.3       ],
+       [0.63333333, 0.36666667]])
+p = 1, threshold = 1000000
+
+    @xp_capabilities(out_of_scope=True)
+    def distance_matrix(x, y, p=2.0, threshold=1000000):
+        """Compute the distance matrix.
+    
+        Returns the matrix of all pair-wise distances.
+    
+        .. deprecated:: 1.18.0
+            This function is deprecated in favor of `scipy.spatial.distance.cdist`
+            and will be removed in SciPy 1.20.0.
+    
+        Parameters
+        ----------
+        x : (M, K) array_like
+            Matrix of M vectors in K dimensions.
+        y : (N, K) array_like
+            Matrix of N vectors in K dimensions.
+        p : float, 1 &lt;= p &lt;= infinity
+            Which Minkowski p-norm to use.
+        threshold : positive int
+            If ``M * N * K`` &gt; `threshold`, algorithm uses a Python loop instead
+            of large temporary arrays.
+    
+        Returns
+        -------
+        result : (M, N) ndarray
+            Matrix containing the distance from every vector in `x` to every vector
+            in `y`.
+    
+        Examples
+        --------
+        &gt;&gt;&gt; from scipy.spatial import distance_matrix
+        &gt;&gt;&gt; distance_matrix([[0,0],[0,1]], [[1,0],[1,1]])
+        array([[ 1.        ,  1.41421356],
+               [ 1.41421356,  1.        ]])
+    
+        """
+        msg = ("`distance_matrix` is deprecated in favor of "
+               "`scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed "
+               "in SciPy 1.20.0.")
+&gt;       warnings.warn(msg, DeprecationWarning,
+                      skip_file_prefixes=(os.path.dirname(__file__),))
+E       DeprecationWarning: `distance_matrix` is deprecated in favor of `scipy.spatial.distance.cdist` as of SciPy 1.18.0 and will be removed in SciPy 1.20.0.
+
+../.local/lib/python3.14/site-packages/scipy/spatial/_kdtree.py:1000: DeprecationWarning</failure></testcase><testcase classname="imblearn.over_sampling.tests.test_common" name="test_heterogeneous_smote_k_custom_nn" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_extra_custom_nn[borderline]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_common" name="test_numerical_smote_extra_custom_nn[svm]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dense_and_sparse_indicator_supported[dense]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dense_and_sparse_indicator_supported[sparse]" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_sparse_formats_accepted[csr_matrix]" time="0.006" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_sparse_formats_accepted[csc_matrix]" time="0.006" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_sparse_formats_accepted[coo_matrix]" time="0.006" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_sparse_formats_accepted[csr_array]" time="0.006" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_sparse_formats_accepted[csc_array]" time="0.008" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_sparse_target_is_never_densified" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_explicit_zeros_and_duplicates_are_normalised" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_rare_combination_grown_to_budget" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dict_strategy_sets_exact_combination_budget" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_callable_strategy_receives_target_matrix" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_minority_strategy_only_targets_smallest_combination" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_synthetic_label_set_seen_in_training[dense]" time="0.003" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_synthetic_label_set_seen_in_training[sparse]" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_no_unseen_label_combination_can_be_built" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_synthetic_never_invents_labels[keep]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_synthetic_never_invents_labels[merge]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_synthetic_never_invents_labels[skip]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_total_budget_caps_total_synthetic" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_total_budget_larger_than_request_is_not_binding" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_label_budget_hard_raises_with_shortfall" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_label_budget_warn_mode_reports_shortfall" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_label_budget_does_not_flood_other_label" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_label_budget_absent_label_is_uncapped" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_positive_and_all_zero_rows_have_defined_behaviour" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_zero_rows_can_be_requested_explicitly" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_explicit_zero_request_rejected_under_keep_policy" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_zero_label_rows_resample_policy" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_wide_label_matrix_many_labels_per_row" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_strategy_keep_merge_skip" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_policy_does_not_apply_to_non_singleton[keep]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_policy_does_not_apply_to_non_singleton[merge]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_policy_does_not_apply_to_non_singleton[skip]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_strategy_parameter_validation" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_output_alignment_dtype_and_shape" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dtype_preserved[int8]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dtype_preserved[int32]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dtype_preserved[int64]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dtype_preserved[float32]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dtype_preserved[bool]" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_sparse_output_flag_overrides_input_sparsity" time="0.005" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_pandas_input_returns_pandas_output" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_pandas_feature_names_recorded" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_pipeline_with_multilabel_classifier" time="0.008" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_pipeline_sparse_input_dense_target_output" time="0.010" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_downstream_classifier_consumes_sparse_target_directly" time="0.010" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_fixed_seed_bit_for_bit_deterministic[dense]" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_fixed_seed_bit_for_bit_deterministic[sparse]" time="0.009" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_fixed_seed_dense_and_sparse_are_equivalent" time="0.006" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_different_seeds_produce_different_samples" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_illegal_target_values_report_positions" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_illegal_sparse_target_reports_count" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_row_count_mismatch_message" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_too_many_all_zero_rows_reports_count" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_zero_label_rows_threshold_accepts_count" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_one_dimensional_target_points_to_single_label_sampler" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_dead_label_column_message" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_column_message" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_label_budget_out_of_range_index" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_undersized_dict_strategy_rejected" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_negative_dict_strategy_rejected" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_all_zero_target_rejected" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_negative_zero_row_threshold_rejected" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_generated_rows_ignore_held_out_data" time="0.010" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_sparse_grouping_memory_linear_in_nnz" time="0.017" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_sparse_output_block_memory_is_proportional_to_labels" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[RandomOverSampler]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[SMOTE]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[ADASYN]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[SMOTEN]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[SMOTENC]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_samplers_still_public[SVMSMOTE]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_single_label_sampler_rejects_multilabel_and_keeps_results" time="0.002" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_ragged_and_scalar_targets_raise_informative_error" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_pandas_sparse_dataframe_target" time="0.004" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_keep_is_applied_before_budget_caps" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_zero_label_rows_threshold_type_is_validated" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_singleton_skip_drops_only_the_singleton_row" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_multilabel_smote" name="test_grouping_handles_unsorted_sparse_input" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_init" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[array-params0]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[array-params1]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[array-params2]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[dataframe-params0]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[dataframe-params1]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample[dataframe-params2]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample_half[params0]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_ros_fit_resample_half[params1]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_multiclass_fit_resample[params0]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_multiclass_fit_resample[params1]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampling_heterogeneous_data" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampling_nan_inf" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampling_heterogeneous_data_smoothed_bootstrap" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_smoothed_bootstrap[dataframe]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_smoothed_bootstrap[array]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_smoothed_bootstrap[sparse_csr]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_smoothed_bootstrap[sparse_csc]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_equivalence_shrinkage" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_shrinkage_behaviour" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_shrinkage_error[shrinkage0-`shrinkage` should contain a shrinkage factor for each class]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_shrinkage_error[shrinkage1-The shrinkage factor needs to be &gt;= 0]" time="0.000" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_strings[auto]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_strings[minority]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_strings[not minority]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_strings[not majority]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_strings[all]" time="0.001" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampling_datetime" time="0.003" /><testcase classname="imblearn.over_sampling.tests.test_random_over_sampler" name="test_random_over_sampler_full_nat" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_generation._cluster_centroids" name="imblearn.under_sampling._prototype_generation._cluster_centroids.ClusterCentroids" time="0.012" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_resample_check_voting[X0-soft]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_resample_check_voting[X1-hard]" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_resample_auto" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_resample_half" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_multiclass_fit_resample" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_resample_object" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_fit_hard_voting" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_cluster_centroids_hard_target_class" time="0.689" /><testcase classname="imblearn.under_sampling._prototype_generation.tests.test_cluster_centroids" name="test_cluster_centroids_custom_clusterer" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection._condensed_nearest_neighbour" name="imblearn.under_sampling._prototype_selection._condensed_nearest_neighbour.CondensedNearestNeighbour" time="0.000"><skipped type="pytest.skip" message="all tests skipped by +SKIP option">/home/wll/.local/lib/python3.14/site-packages/_pytest/doctest.py:458: all tests skipped by +SKIP option</skipped></testcase><testcase classname="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours" name="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours.AllKNN" time="0.008" /><testcase classname="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours" name="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours.EditedNearestNeighbours" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours" name="imblearn.under_sampling._prototype_selection._edited_nearest_neighbours.RepeatedEditedNearestNeighbours" time="0.006" /><testcase classname="imblearn.under_sampling._prototype_selection._instance_hardness_threshold" name="imblearn.under_sampling._prototype_selection._instance_hardness_threshold.InstanceHardnessThreshold" time="0.390" /><testcase classname="imblearn.under_sampling._prototype_selection._nearmiss" name="imblearn.under_sampling._prototype_selection._nearmiss.NearMiss" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection._neighbourhood_cleaning_rule" name="imblearn.under_sampling._prototype_selection._neighbourhood_cleaning_rule.NeighbourhoodCleaningRule" time="0.005" /><testcase classname="imblearn.under_sampling._prototype_selection._one_sided_selection" name="imblearn.under_sampling._prototype_selection._one_sided_selection.OneSidedSelection" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection._random_under_sampler" name="imblearn.under_sampling._prototype_selection._random_under_sampler.RandomUnderSampler" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection._tomek_links" name="imblearn.under_sampling._prototype_selection._tomek_links.TomekLinks" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_allknn" name="test_allknn_fit_resample" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_allknn" name="test_all_knn_allow_minority" time="0.027" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_allknn" name="test_allknn_fit_resample_mode" time="0.005" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_allknn" name="test_allknn_fit_resample_with_nn_object" time="0.006" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_allknn" name="test_alknn_not_good_object" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_condensed_nearest_neighbour" name="test_cnn_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_condensed_nearest_neighbour" name="test_cnn_fit_resample" time="0.008" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_condensed_nearest_neighbour" name="test_cnn_fit_resample_with_object[1]" time="0.018" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_condensed_nearest_neighbour" name="test_cnn_fit_resample_with_object[n_neighbors1]" time="0.016" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_condensed_nearest_neighbour" name="test_condensed_nearest_neighbour_multiclass" time="0.123" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_edited_nearest_neighbours" name="test_enn_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_edited_nearest_neighbours" name="test_enn_fit_resample" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_edited_nearest_neighbours" name="test_enn_fit_resample_mode" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_edited_nearest_neighbours" name="test_enn_fit_resample_with_nn_object" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_edited_nearest_neighbours" name="test_enn_check_kind_selection" time="0.005" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_fit_resample" time="0.056" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_fit_resample_half" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_fit_resample_class_obj" time="0.056" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_reproducibility" time="0.407" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_fit_resample_default_estimator" time="0.225" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_instance_hardness_threshold" name="test_iht_estimator_pipeline" time="0.067" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_nearmiss" name="test_nm_fit_resample_auto" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_nearmiss" name="test_nm_fit_resample_float_sampling_strategy" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_nearmiss" name="test_nm_fit_resample_nn_obj" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_neighbourhood_cleaning_rule" name="test_ncr_threshold_cleaning" time="0.009" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_neighbourhood_cleaning_rule" name="test_ncr_n_neighbors" time="0.005" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_one_sided_selection" name="test_oss_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_one_sided_selection" name="test_oss_fit_resample" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_one_sided_selection" name="test_oss_with_object[1]" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_one_sided_selection" name="test_oss_with_object[n_neighbors1]" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_one_sided_selection" name="test_one_sided_selection_multiclass" time="0.005" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_rus_fit_resample[dataframe]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_rus_fit_resample[array]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_rus_fit_resample_half" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_multiclass_fit_resample" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampling_heterogeneous_data" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampling_nan_inf" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_strings[auto]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_strings[majority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_strings[not minority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_strings[not majority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_strings[all]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampling_datetime" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_random_under_sampler" name="test_random_under_sampler_full_nat" time="0.002" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_iter_wrong" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_fit_resample" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_fit_resample_mode_object" time="0.004" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_fit_resample_mode" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_iter_attribute[2-2]" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_repeated_edited_nearest_neighbours" name="test_renn_iter_attribute[5-3]" time="0.003" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tl_init" time="0.000" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tl_fit_resample" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tomek_links_strings[auto]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tomek_links_strings[majority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tomek_links_strings[not minority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tomek_links_strings[not majority]" time="0.001" /><testcase classname="imblearn.under_sampling._prototype_selection.tests.test_tomek_links" name="test_tomek_links_strings[all]" time="0.001" /><testcase classname="imblearn.combine._smote_enn" name="imblearn.combine._smote_enn.SMOTEENN" time="0.008" /><testcase classname="imblearn.combine._smote_tomek" name="imblearn.combine._smote_tomek.SMOTETomek" time="0.007" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_sample_regular" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_sample_regular_pass_smote_enn" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_sample_regular_half" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_validate_estimator_init" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_validate_estimator_default" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_enn" name="test_parallelisation" time="0.000" /><testcase classname="imblearn.combine.tests.test_smote_tomek" name="test_sample_regular" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_tomek" name="test_sample_regular_half" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_tomek" name="test_validate_estimator_init" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_tomek" name="test_validate_estimator_default" time="0.002" /><testcase classname="imblearn.combine.tests.test_smote_tomek" name="test_parallelisation" time="0.000" /></testsuite></testsuites>

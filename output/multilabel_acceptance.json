@@ -1,0 +1,214 @@
+{
+  "seed": 42,
+  "1_rare_combination_grown": {
+    "dense": {
+      "input_sparse": false,
+      "output_target_sparse": false,
+      "n_rows_in": 62,
+      "n_rows_out": 94,
+      "counts_per_label_set": {
+        "(0,)": {
+          "before": 30,
+          "after": 30
+        },
+        "(1,)": {
+          "before": 20,
+          "after": 30
+        },
+        "(0, 2)": {
+          "before": 8,
+          "after": 30
+        },
+        "(3,)": {
+          "before": 1,
+          "after": 1
+        },
+        "()": {
+          "before": 3,
+          "after": 3
+        }
+      },
+      "synthetic_per_label_set": {
+        "(0,)": 0,
+        "(1,)": 10,
+        "(0, 2)": 22,
+        "(3,)": 0
+      }
+    },
+    "sparse": {
+      "input_sparse": true,
+      "output_target_sparse": true,
+      "n_rows_in": 62,
+      "n_rows_out": 94,
+      "counts_per_label_set": {
+        "(0,)": {
+          "before": 30,
+          "after": 30
+        },
+        "(1,)": {
+          "before": 20,
+          "after": 30
+        },
+        "(0, 2)": {
+          "before": 8,
+          "after": 30
+        },
+        "(3,)": {
+          "before": 1,
+          "after": 1
+        },
+        "()": {
+          "before": 3,
+          "after": 3
+        }
+      },
+      "synthetic_per_label_set": {
+        "(0,)": 0,
+        "(1,)": 10,
+        "(0, 2)": 22,
+        "(3,)": 0
+      }
+    }
+  },
+  "2_synthetic_label_sets_valid": {
+    "dense": {
+      "all_seen_in_training": true,
+      "no_all_zero_synthetic": true,
+      "no_out_of_range_label": true,
+      "synthetic_label_sets": [
+        [
+          0,
+          2
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    "sparse": {
+      "all_seen_in_training": true,
+      "no_all_zero_synthetic": true,
+      "no_out_of_range_label": true,
+      "synthetic_label_sets": [
+        [
+          0,
+          2
+        ],
+        [
+          1
+        ]
+      ]
+    }
+  },
+  "3_determinism": {
+    "dense": {
+      "X_identical": true,
+      "y_identical": true,
+      "X_elementwise_equal": true,
+      "y_elementwise_equal": true
+    },
+    "sparse": {
+      "X_identical": true,
+      "y_identical": true,
+      "X_elementwise_equal": true,
+      "y_elementwise_equal": true
+    }
+  },
+  "4_budgets": {
+    "total_budget": {
+      "cap": 10,
+      "synthetic_generated": 10,
+      "rows_out": 72
+    },
+    "label_budget": {
+      "cap_for_label_2": 5,
+      "synthetic_with_label_2": 5,
+      "reported_shortfall": {
+        "2": 17
+      }
+    }
+  },
+  "5_singleton_policy": {
+    "keep": {
+      "rows_out": 94,
+      "synthetic_sets": [
+        [
+          0,
+          2
+        ],
+        [
+          1
+        ]
+      ],
+      "n_synthetic_singleton": 0
+    },
+    "merge": {
+      "rows_out": 123,
+      "synthetic_sets": [
+        [
+          0
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          1
+        ]
+      ],
+      "n_synthetic_singleton": 29
+    },
+    "skip": {
+      "rows_out": 93,
+      "synthetic_sets": [
+        [
+          0,
+          2
+        ],
+        [
+          1
+        ]
+      ],
+      "n_synthetic_singleton": 0
+    }
+  },
+  "6_sparse_memory": {
+    "scaling": {
+      "20": {
+        "n_distinct_combinations": 210,
+        "max_labels_per_tuple": 2,
+        "nnz": 9750
+      },
+      "200": {
+        "n_distinct_combinations": 4435,
+        "max_labels_per_tuple": 2,
+        "nnz": 9979
+      },
+      "2000": {
+        "n_distinct_combinations": 4992,
+        "max_labels_per_tuple": 2,
+        "nnz": 9998
+      }
+    },
+    "million_rows": {
+      "n_rows": 1000000,
+      "n_labels": 50,
+      "nnz": 2940365,
+      "n_distinct_combinations": 20875,
+      "max_labels_per_tuple": 3,
+      "peak_memory_mb": 143.3
+    }
+  },
+  "7_downstream": {
+    "sparse_target_type": "csr_matrix",
+    "sparse_target_accepted_by_one_vs_rest": [
+      3,
+      4
+    ],
+    "output_sparse_false_is_dense": true,
+    "dense_target_predict_shape": [
+      3,
+      4
+    ]
+  }
+}

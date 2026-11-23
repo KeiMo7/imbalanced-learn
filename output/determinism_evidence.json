@@ -1,0 +1,19 @@
+{
+  "dense_X_sha256_first_rows": null,
+  "dense_X_equal": true,
+  "dense_y_equal": true,
+  "sparse_X_equal": true,
+  "sparse_y_equal": true,
+  "maximum_abs_diff_dense_X": 0.0,
+  "maximum_abs_diff_dense_y": 0.0,
+  "n_synthetic": {
+    "(0,)": 30,
+    "(1,)": 30,
+    "(0, 2)": 30,
+    "(3,)": 1
+  },
+  "dense_X_sha256_run1": "a321ba99e6b4d66c74f128c135aad1519f977ba218f4c62d01c98a5252a66c90",
+  "dense_X_sha256_run2": "a321ba99e6b4d66c74f128c135aad1519f977ba218f4c62d01c98a5252a66c90",
+  "dense_y_sha256_run1": "ff5da7fecd509f919210de25ca779473cc0e2e827caaefb006752dea1fa3875f",
+  "dense_y_sha256_run2": "ff5da7fecd509f919210de25ca779473cc0e2e827caaefb006752dea1fa3875f"
+}

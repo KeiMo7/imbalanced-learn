@@ -31,6 +31,7 @@ from imblearn.over_sampling import (
     SVMSMOTE,
     BorderlineSMOTE,
     KMeansSMOTE,
+    MultiLabelSMOTE,
     RandomOverSampler,
 )
 from imblearn.pipeline import Pipeline
@@ -71,6 +72,7 @@ INIT_PARAMS = {
     SMOTEN: dict(random_state=42),
     SMOTENC: dict(categorical_features=[0], random_state=42),
     SVMSMOTE: dict(random_state=42),
+    MultiLabelSMOTE: dict(random_state=42),
     # under-sampling
     ClusterCentroids: dict(random_state=42),
     CondensedNearestNeighbour: dict(random_state=42),
@@ -206,6 +208,62 @@ PER_ESTIMATOR_XFAIL_CHECKS = {
     },
     NearMiss: {
         "check_samplers_fit_resample": "FIXME",
+    },
+    MultiLabelSMOTE: {
+        # MultiLabelSMOTE consumes a 2D multi-label indicator matrix. The
+        # generic scikit-learn estimator checks build 1D single-label targets
+        # (and exercise behaviours such as sparse X with a 1D y), so they are
+        # structurally inapplicable. Multi-label behaviour is covered by the
+        # dedicated tests in over_sampling/tests/test_multilabel_smote.py.
+        "check_dict_unchanged": "requires a 2D multi-label indicator target",
+        "check_dont_overwrite_parameters": "requires a 2D multi-label indicator target",
+        "check_dtype_object": "requires a 2D multi-label indicator target",
+        "check_estimator_sparse_array": (
+            "generic check uses a 1D target; sparse multi-label is tested "
+            "dedicatedly"
+        ),
+        "check_estimator_sparse_matrix": (
+            "generic check uses a 1D target; sparse multi-label is tested "
+            "dedicatedly"
+        ),
+        "check_estimator_sparse_tag": (
+            "generic check uses a 1D target; sparse multi-label is tested "
+            "dedicatedly"
+        ),
+        "check_estimators_dtypes": "requires a 2D multi-label indicator target",
+        "check_estimators_fit_returns_self": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_estimators_nan_inf": "requires a 2D multi-label indicator target",
+        "check_estimators_overwrite_params": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_estimators_pickle": "requires a 2D multi-label indicator target",
+        "check_estimators_pickle(readonly_memmap=True)": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_f_contiguous_array_estimator": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_fit2d_1feature": "requires a 2D multi-label indicator target",
+        "check_fit2d_1sample": "requires a 2D multi-label indicator target",
+        "check_fit2d_predict1d": "requires a 2D multi-label indicator target",
+        "check_fit_check_is_fitted": "requires a 2D multi-label indicator target",
+        "check_fit_idempotent": "requires a 2D multi-label indicator target",
+        "check_fit_score_takes_y": "requires a 2D multi-label indicator target",
+        "check_methods_sample_order_invariance": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_methods_subset_invariance": "requires a 2D multi-label indicator target",
+        "check_n_features_in": "requires a 2D multi-label indicator target",
+        "check_n_features_in_after_fitting": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_pipeline_consistency": "requires a 2D multi-label indicator target",
+        "check_positive_only_tag_during_fit": (
+            "requires a 2D multi-label indicator target"
+        ),
+        "check_readonly_memmap_input": "requires a 2D multi-label indicator target",
     },
     Pipeline: {
         "check_classifiers_train": "FIXME",

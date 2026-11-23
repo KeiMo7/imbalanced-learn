@@ -80,6 +80,12 @@ def _yield_sampler_checks(sampler):
     accept_string = tags.input_tags.string
     allow_nan = tags.input_tags.allow_nan
 
+    # The checks below are built around a 1D single-label target. Samplers
+    # that only accept a 2D multi-label indicator matrix are validated by
+    # their own dedicated test module instead.
+    if getattr(sampler, "_multilabel_sampler", False):
+        return
+
     yield check_target_type
     yield check_samplers_one_label
     yield check_samplers_fit
@@ -755,7 +761,16 @@ def check_dataframe_column_names_consistency(name, estimator_orig):
         y = rng.normal(size=n_samples)
     else:
         y = rng.randint(low=0, high=2, size=n_samples)
-    y = _enforce_estimator_tags_y(estimator, y)
+        if getattr(estimator_orig, "_multilabel_sampler", False):
+            # Multi-label samplers consume a 2D indicator matrix, not a 1D
+            # class vector. Build a valid indicator target so that the
+            # feature-name consistency check still applies to them.
+            y = np.column_stack([y, np.roll(y, 1), np.roll(y, 2)])
+            y[:, 0] = 1
+            y[0, 1] = 1
+            y[1, 2] = 1
+        else:
+            y = _enforce_estimator_tags_y(estimator, y)
 
     # Check that calling `fit` does not raise any warnings about feature names.
     with warnings.catch_warnings():
